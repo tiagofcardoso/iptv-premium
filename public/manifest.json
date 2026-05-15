@@ -1,0 +1,17 @@
+{
+  "name": "IPTV Premium",
+  "short_name": "IPTV",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#030712",
+  "theme_color": "#7c3aed",
+  "description": "Premium Web IPTV Player",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
