@@ -136,7 +136,9 @@ app.get('/proxy/m3u', async (req, res) => {
     }
 
     const body = await upstream.text();
-    const base = `http://localhost:${PORT}`;
+    // Dynamically get the proxy server's own public URL
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const base = `${protocol}://${req.get('host')}`;
 
     // Rewrite every http(s) URL line in the playlist:
     //  1. Convert Xtream .ts live stream URLs → .m3u8 (HLS manifest)

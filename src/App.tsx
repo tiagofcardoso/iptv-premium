@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Menu, Tv, Code2, Globe, Loader2 } from 'lucide-react';
 import Sidebar from './components/Sidebar.tsx';
 import VideoPlayer, { type VideoPlayerHandle } from './components/VideoPlayer.tsx';

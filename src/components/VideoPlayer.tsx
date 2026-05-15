@@ -1,4 +1,4 @@
-import React, {
+import {
   useEffect, useRef, useState, forwardRef, useImperativeHandle,
 } from 'react';
 import Hls from 'hls.js';

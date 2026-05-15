@@ -1,4 +1,5 @@
 import type { Channel, Category } from '../types/index.ts';
+import { proxyM3uUrl } from './proxy.ts';
 
 /**
  * Generates a stable unique ID for each channel based on its URL.
@@ -148,12 +149,13 @@ export function groupByCategory(channels: Channel[]): Category[] {
  * The user-facing error message should guide them accordingly.
  */
 export async function fetchM3U(url: string): Promise<Channel[]> {
-  // Try fetching the playlist directly first (most providers allow this)
+  // Use our own proxy to avoid HTTPS Mixed Content blocks and CORS issues
   let response: Response;
   try {
-    response = await fetch(url);
+    const proxied = proxyM3uUrl(url);
+    response = await fetch(proxied);
   } catch {
-    // CORS blocked — fall back to a public proxy
+    // Fallback to corsproxy.io if our proxy is unreachable
     const proxied = `https://corsproxy.io/?${encodeURIComponent(url)}`;
     response = await fetch(proxied);
   }

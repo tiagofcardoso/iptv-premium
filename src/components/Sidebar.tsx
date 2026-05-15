@@ -197,7 +197,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, playerRef }) => {
             ].map(({ key, icon: Icon, label }) => (
               <button
                 key={key}
-                onClick={() => { setView(key); if (key !== 'channels') setActiveCategory(null); }}
+                onClick={() => { setView(key); setActiveCategory(null); }}
                 className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-1.5 rounded-lg font-medium transition-all ${
                   view === key
                     ? 'bg-violet-600/20 text-violet-400 border border-violet-500/30'
