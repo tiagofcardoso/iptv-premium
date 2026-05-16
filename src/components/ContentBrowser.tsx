@@ -240,7 +240,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
 
         {/* Series: Show cards within platform */}
         {!showSearch && isSeries && activeCategory && !activeShow && (
-          <div className="p-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-9 gap-3">
+          <div className="p-3 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-9 gap-2 sm:gap-3">
             {showsInCategory.map(show => (
               <ShowCard
                 key={show.name}

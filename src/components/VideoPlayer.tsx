@@ -243,7 +243,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ url }, re
   return (
     <div
       ref={containerRef}
-      className="relative w-full bg-black rounded-xl overflow-hidden aspect-video group"
+      className="relative w-full h-full sm:h-auto sm:aspect-video bg-black sm:rounded-xl overflow-hidden group"
       onMouseMove={showControls}
       onTouchStart={showControls}
       onClick={status === 'playing' ? togglePlayPause : undefined}

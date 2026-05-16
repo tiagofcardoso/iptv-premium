@@ -193,20 +193,7 @@ function App() {
       {/* ── Main area ── */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
 
-        {/* Floating settings button (only on home) */}
-        {screen === 'home' && (
-          <div className="absolute top-3 right-4 z-10">
-            <button
-              onClick={() => setShowSidebar(true)}
-              className="p-2 rounded-xl bg-gray-800/80 backdrop-blur hover:bg-gray-700 transition-colors"
-              title="Configurações / Lista M3U"
-            >
-              <Settings className="w-5 h-5 text-gray-400" />
-            </button>
-          </div>
-        )}
 
-        {/* ── Home screen ── */}
         {screen === 'home' && (
           <HomeScreen
             channelsCount={channels.length}
@@ -215,6 +202,7 @@ function App() {
             proxyStatus={proxyStatus}
             onSelectSection={handleSelectSection}
             onForceRefresh={handleForceRefresh}
+            onOpenSettings={() => setShowSidebar(true)}
             lastUpdated={lastUpdated}
             installPrompt={installPrompt}
             onInstall={handleInstall}
@@ -271,9 +259,9 @@ function App() {
               </button>
             </div>
 
-            {/* Player — full height minus header */}
-            <div className="flex-1 flex items-center justify-center bg-black p-2 sm:p-4">
-              <div className="w-full max-w-6xl">
+          {/* Player — full screen on mobile, centered on desktop */}
+            <div className="flex-1 flex items-center justify-center bg-black">
+              <div className="w-full h-full sm:max-w-6xl sm:p-4 flex items-center">
                 <VideoPlayer ref={playerRef} url={currentChannel.url} />
               </div>
             </div>
