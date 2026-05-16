@@ -35,16 +35,21 @@ function normalizeStreamUrl(url: string): string {
   return url;
 }
 
+/** Normalize accents: "SÉRIES" → "SERIES", "FILMES" → "FILMES" */
+function stripAccents(str: string): string {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 /** Detect content type from group-title and URL patterns */
 function detectContentType(group: string, url: string): Channel['contentType'] {
   const u = url.toLowerCase().split('?')[0]; // strip query string for path matching
-  const g = group.toLowerCase();
+  const g = stripAccents(group.toLowerCase()); // normalize accents for matching
 
   // URL path takes priority — Xtream Codes standard paths
   if (u.includes('/movie/')) return 'movie';
   if (u.includes('/series/')) return 'series';
 
-  // Group name fallback
+  // Group name fallback (accent-normalized)
   if (g.includes('film') || g.includes('movie') || g.includes('filme') || g.includes('cinema')) return 'movie';
   if (
     g.includes('serie') || g.includes('season') || g.includes('temporada') ||

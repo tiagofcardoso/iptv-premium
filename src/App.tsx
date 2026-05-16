@@ -109,6 +109,12 @@ function App() {
         fetchM3U(playlistUrl)
           .then(parsed => {
             const withFavs = parsed.map(c => ({ ...c, isFavorite: favIds.has(c.id) }));
+            // Debug: log content type breakdown
+            const counts = withFavs.reduce((acc, c) => {
+              acc[c.contentType ?? 'live'] = (acc[c.contentType ?? 'live'] ?? 0) + 1;
+              return acc;
+            }, {} as Record<string, number>);
+            console.log('[IPTV] Content types:', counts);
             setChannels(withFavs, playlistUrl);
             setLastUpdated(new Date().toLocaleString('pt-PT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }));
           })
@@ -116,6 +122,21 @@ function App() {
             console.error('[IPTV] Auto-reload failed:', err);
             setAutoLoading(false);
           });
+      } else if (playlistUrl && channels.length > 0) {
+        // Migration: re-parse with updated content type logic
+        const favIds = getPersistedFavoriteIds();
+        fetchM3U(playlistUrl)
+          .then(reparsed => {
+            const withFavs = reparsed.map(c => ({ ...c, isFavorite: favIds.has(c.id) }));
+            const counts = withFavs.reduce((acc, c) => {
+              acc[c.contentType ?? 'live'] = (acc[c.contentType ?? 'live'] ?? 0) + 1;
+              return acc;
+            }, {} as Record<string, number>);
+            console.log('[IPTV] Re-parsed content types:', counts);
+            setChannels(withFavs, playlistUrl);
+            setLastUpdated(new Date().toLocaleString('pt-PT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }));
+          })
+          .catch(() => { /* silently skip */ });
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
