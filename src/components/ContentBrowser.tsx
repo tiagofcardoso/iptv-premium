@@ -13,11 +13,9 @@ interface ContentBrowserProps {
 const TITLE_MAP = { live: 'TV AO VIVO', movies: 'FILMES', series: 'SÉRIES' };
 const FAVS_KEY = '__FAVORITOS__';
 
-/**
- * Returns the most frequently occurring logo URL among a list of channels,
- * BUT only if it appears in MORE THAN ONE episode.
- * If every episode has a unique logo, they are episode screenshots — return '' so
- * the ShowCard renders a styled gradient fallback with the series name.
+/** Returns the most frequently occurring logo across episodes.
+ * If a single logo dominates (same poster shared by episodes), that's the series poster.
+ * Otherwise falls back to the first available logo.
  */
 function mostCommonLogo(channels: Channel[]): string {
   const freq = new Map<string, number>();
@@ -26,9 +24,8 @@ function mostCommonLogo(channels: Channel[]): string {
     freq.set(ch.logo, (freq.get(ch.logo) ?? 0) + 1);
   }
   if (freq.size === 0) return '';
-  const [bestUrl, bestCount] = [...freq.entries()].sort((a, b) => b[1] - a[1])[0];
-  // Only treat as a real series poster if the same image appears in at least 2 episodes
-  return bestCount >= 2 ? bestUrl : '';
+  // Return the most common logo (even if count=1, still the best we have)
+  return [...freq.entries()].sort((a, b) => b[1] - a[1])[0][0];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -416,16 +413,6 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isActive,
   const hue = Math.abs(name.split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0)) % 360;
   const gradientStyle = { background: `linear-gradient(160deg, hsl(${hue},55%,22%) 0%, hsl(${hue},40%,10%) 100%)` };
 
-  // Reject landscape images (episode screenshots) and show gradient fallback instead
-  const handleImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = e.target as HTMLImageElement;
-    const isLandscape = img.naturalWidth > img.naturalHeight;
-    if (isLandscape) {
-      img.style.display = 'none';
-      (img.parentElement?.querySelector('.show-fallback') as HTMLElement | null)?.style.setProperty('display', 'flex');
-    }
-  };
-
   const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.target as HTMLImageElement;
     img.style.display = 'none';
@@ -444,12 +431,11 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isActive,
           <img
             src={logo} alt={name}
             className="w-full h-full object-cover"
-            onLoad={handleImgLoad}
             onError={handleImgError}
           />
         ) : null}
 
-        {/* Gradient fallback — shown when no poster or when landscape screenshot detected */}
+        {/* Gradient fallback — only when no logo URL at all */}
         <div
           className="show-fallback absolute inset-0 flex flex-col items-end justify-end p-3 pb-8"
           style={{ ...gradientStyle, display: logo ? 'none' : 'flex' }}
@@ -479,7 +465,7 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isActive,
         </div>
       </div>
 
-      <div className="px-1.5 py-1.5" style={{ background: '#111827' }}>
+      <div className="bg-gray-900 px-1.5 py-1.5">
         <p className="text-white text-xs font-medium truncate">{name}</p>
       </div>
     </div>
