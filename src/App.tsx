@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Download, Menu, Tv, Settings, X } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Tv, Settings } from 'lucide-react';
 import HomeScreen from './components/HomeScreen.tsx';
 import ContentBrowser from './components/ContentBrowser.tsx';
 import VideoPlayer, { type VideoPlayerHandle } from './components/VideoPlayer.tsx';
@@ -8,10 +8,28 @@ import { useIPTVStore, getPersistedFavoriteIds } from './store/useIPTVStore.ts';
 import { fetchM3U } from './utils/m3uParser.ts';
 import { PROXY_BASE } from './utils/proxy.ts';
 
-type Section = 'home' | 'live' | 'movies' | 'series';
+// ── Navigation state stored in browser history ────────────────────────────────
+// Each "page" in the stack is one of these states pushed via history.pushState
+type NavScreen = 'home' | 'live' | 'movies' | 'series' | 'player';
+
+interface NavState {
+  screen: NavScreen;
+}
+
+function pushNav(screen: NavScreen) {
+  const state: NavState = { screen };
+  window.history.pushState(state, '', '');
+}
+
+function getInitialScreen(): NavScreen {
+  const state = window.history.state as NavState | null;
+  return state?.screen ?? 'home';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 function App() {
-  const [section, setSection] = useState<Section>('home');
+  const [screen, setScreen] = useState<NavScreen>(getInitialScreen);
   const [proxyStatus, setProxyStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [showSidebar, setShowSidebar] = useState(false);
@@ -19,9 +37,45 @@ function App() {
   const playerRef = useRef<VideoPlayerHandle>(null);
 
   const {
-    currentChannel, channels,
+    currentChannel, setCurrentChannel, channels,
     playlistUrl, setChannels, setAutoLoading,
   } = useIPTVStore();
+
+  // ── Replace initial history entry so the very first "back" stays in-app ──────
+  useEffect(() => {
+    // Replace the initial browser entry with our home state
+    window.history.replaceState({ screen: 'home' } satisfies NavState, '');
+  }, []);
+
+  // ── Handle hardware/browser back button ──────────────────────────────────────
+  useEffect(() => {
+    const onPopState = (e: PopStateEvent) => {
+      const state = e.state as NavState | null;
+      const target = state?.screen ?? 'home';
+      setScreen(target);
+
+      // If navigating away from player, stop channel but keep section
+      if (target !== 'player') {
+        setCurrentChannel(null as any);
+      }
+
+      // Close sidebar on any navigation
+      setShowSidebar(false);
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [setCurrentChannel]);
+
+  // ── Navigation helpers ────────────────────────────────────────────────────────
+  const navigateTo = useCallback((next: NavScreen) => {
+    pushNav(next);
+    setScreen(next);
+  }, []);
+
+  const navigateBack = useCallback(() => {
+    window.history.back(); // triggers popstate → handled above
+  }, []);
 
   // ── PWA Install ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -81,17 +135,27 @@ function App() {
       .catch(console.error);
   };
 
+  // ── Section navigation ────────────────────────────────────────────────────────
+  const handleSelectSection = (section: 'live' | 'movies' | 'series') => {
+    if (channels.length === 0) { setShowSidebar(true); return; }
+    navigateTo(section);
+  };
+
+  // ── Channel selection → opens player ─────────────────────────────────────────
+  const handleSelectChannel = (channel: any) => {
+    setCurrentChannel(channel);
+    navigateTo('player');
+  };
+
   // ── Content counts ────────────────────────────────────────────────────────────
   const moviesCount = channels.filter(c => c.contentType === 'movie').length;
   const seriesCount = channels.filter(c => c.contentType === 'series').length;
 
-  // ── Video player overlay (shown when a channel is active) ─────────────────────
-  const showPlayer = !!currentChannel;
 
   return (
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden font-sans">
 
-      {/* ── Settings Sidebar (for playlist management) ── */}
+      {/* ── Settings Sidebar ── */}
       {showSidebar && (
         <>
           <div className="fixed inset-0 bg-black/70 z-40" onClick={() => setShowSidebar(false)} />
@@ -108,37 +172,27 @@ function App() {
       {/* ── Main area ── */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
 
-        {/* Floating top actions */}
-        <div className="absolute top-3 right-4 z-10 flex items-center gap-2">
-          {installPrompt && (
+        {/* Floating settings button (only on home) */}
+        {screen === 'home' && (
+          <div className="absolute top-3 right-4 z-10">
             <button
-              onClick={handleInstall}
-              className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-sm font-medium transition-colors shadow-lg"
+              onClick={() => setShowSidebar(true)}
+              className="p-2 rounded-xl bg-gray-800/80 backdrop-blur hover:bg-gray-700 transition-colors"
+              title="Configurações / Lista M3U"
             >
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:block">Instalar</span>
+              <Settings className="w-5 h-5 text-gray-400" />
             </button>
-          )}
-          <button
-            onClick={() => setShowSidebar(true)}
-            className="p-2 rounded-xl bg-gray-800/80 backdrop-blur hover:bg-gray-700 transition-colors"
-            title="Configurações / Lista M3U"
-          >
-            <Settings className="w-5 h-5 text-gray-400" />
-          </button>
-        </div>
+          </div>
+        )}
 
-        {/* ── Home ── */}
-        {section === 'home' && (
+        {/* ── Home screen ── */}
+        {screen === 'home' && (
           <HomeScreen
             channelsCount={channels.length}
             moviesCount={moviesCount}
             seriesCount={seriesCount}
             proxyStatus={proxyStatus}
-            onSelectSection={s => {
-              if (channels.length === 0) { setShowSidebar(true); return; }
-              setSection(s);
-            }}
+            onSelectSection={handleSelectSection}
             onForceRefresh={handleForceRefresh}
             lastUpdated={lastUpdated}
             installPrompt={installPrompt}
@@ -147,46 +201,57 @@ function App() {
         )}
 
         {/* ── Content Browser (Live / Movies / Series) ── */}
-        {(section === 'live' || section === 'movies' || section === 'series') && (
+        {(screen === 'live' || screen === 'movies' || screen === 'series') && (
           <ContentBrowser
-            section={section}
+            section={screen}
             channels={channels}
-            onBack={() => setSection('home')}
-            playerRef={playerRef}
+            onBack={navigateBack}
+            onSelectChannel={handleSelectChannel}
           />
         )}
 
-        {/* ── Video Player Overlay ── */}
-        {showPlayer && (
-          <div className="fixed inset-0 z-30 bg-black/95 flex flex-col">
+        {/* ── Player screen ── */}
+        {screen === 'player' && currentChannel && (
+          <div className="fixed inset-0 z-30 bg-black flex flex-col">
             {/* Player header */}
-            <div className="flex items-center gap-3 px-4 py-3 bg-gray-950/80 backdrop-blur shrink-0">
+            <div className="flex items-center gap-3 px-4 py-3 bg-gray-950/90 backdrop-blur shrink-0">
               <button
-                onClick={() => setSection(section === 'home' ? 'live' : section)}
-                className="p-2 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors"
+                onClick={navigateBack}
+                className="p-2 rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 transition-colors"
+                aria-label="Voltar"
               >
-                <X className="w-4 h-4 text-white" />
+                {/* Chevron left */}
+                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
               </button>
-              <div className="flex items-center gap-2 min-w-0">
+
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
                 {currentChannel.logo && (
-                  <img src={currentChannel.logo} alt="" className="w-7 h-7 rounded object-contain bg-gray-800" />
+                  <img
+                    src={currentChannel.logo}
+                    alt=""
+                    className="w-8 h-8 rounded-lg object-contain bg-gray-800 shrink-0"
+                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
                 )}
                 <div className="min-w-0">
                   <p className="text-white font-semibold text-sm truncate">{currentChannel.name}</p>
                   <p className="text-gray-500 text-xs truncate">{currentChannel.group}</p>
                 </div>
               </div>
-              <div className="flex-1" />
+
               <button
                 onClick={() => setShowSidebar(true)}
-                className="p-2 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors"
+                className="p-2 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors shrink-0"
+                aria-label="Menu"
               >
-                <Menu className="w-4 h-4 text-gray-400" />
+                <Settings className="w-4 h-4 text-gray-400" />
               </button>
             </div>
 
-            {/* Player */}
-            <div className="flex-1 flex items-center justify-center p-4">
+            {/* Player — full height minus header */}
+            <div className="flex-1 flex items-center justify-center bg-black p-2 sm:p-4">
               <div className="w-full max-w-6xl">
                 <VideoPlayer ref={playerRef} url={currentChannel.url} />
               </div>
@@ -194,8 +259,8 @@ function App() {
           </div>
         )}
 
-        {/* Empty state — no playlist yet */}
-        {channels.length === 0 && section === 'home' && (
+        {/* Hint when no playlist */}
+        {channels.length === 0 && screen === 'home' && (
           <div className="absolute bottom-24 left-0 right-0 flex justify-center pointer-events-none">
             <div className="flex items-center gap-2 px-4 py-2 bg-gray-900/80 backdrop-blur rounded-full border border-white/10 text-xs text-gray-400">
               <Tv className="w-3.5 h-3.5" />
