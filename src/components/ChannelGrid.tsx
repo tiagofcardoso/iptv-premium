@@ -26,7 +26,7 @@ const ChannelGrid: React.FC<ChannelGridProps> = ({ channels, title, playerRef, l
   return (
     <div className="mt-2">
       <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">{title}</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2 sm:gap-3">
         {channels.slice(0, limit).map(channel => (
           <ChannelCard
             key={channel.id}

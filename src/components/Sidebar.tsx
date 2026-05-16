@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Search, Tv, ChevronRight, ChevronLeft, X, ChevronDown,
+  Search, Tv, ChevronRight, ChevronLeft, ChevronDown,
   List, Heart, Loader2, Link, UploadCloud, Trash2,
   Film, Clapperboard, Radio, Star,
 } from 'lucide-react';
@@ -17,7 +17,7 @@ interface SidebarProps {
 
 type SidebarView = 'categories' | 'channels' | 'favorites';
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, playerRef }) => {
+const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
   const {
     channels, categories, currentChannel, activeCategory,
     searchQuery, playlistUrl,
@@ -104,19 +104,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, playerRef }) => {
 
   return (
     <>
-      {/* Mobile overlay */}
-      {isOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 md:hidden" onClick={onToggle} />
-      )}
-
-      <aside
-        className={`
-          fixed md:relative inset-y-0 left-0 z-30 flex flex-col
-          w-72 bg-gray-900/95 backdrop-blur-xl border-r border-white/5
-          transition-transform duration-300 ease-in-out
-          ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden md:border-0'}
-        `}
-      >
+      <aside className="flex flex-col w-full h-full bg-gray-900/95 backdrop-blur-xl border-r border-white/5 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-white/5 shrink-0">
           <div className="flex items-center gap-2">
@@ -125,8 +113,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, playerRef }) => {
             </div>
             <span className="text-white font-bold text-sm tracking-wide">IPTV Premium</span>
           </div>
-          <button onClick={onToggle} className="md:hidden p-1 rounded-lg hover:bg-white/10 transition-colors">
-            <X className="w-4 h-4 text-gray-400" />
+          <button onClick={onToggle} className="p-1 rounded-lg hover:bg-white/10 transition-colors">
+            <ChevronLeft className="w-4 h-4 text-gray-400" />
           </button>
         </div>
 
