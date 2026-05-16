@@ -1,5 +1,5 @@
 import React, { useRef, useState, useMemo } from 'react';
-import { ChevronRight, Play, Heart, Search, ArrowLeft, Tv, Folder, X, Star } from 'lucide-react';
+import { ChevronRight, Play, Heart, ArrowLeft, Tv, Folder, Star } from 'lucide-react';
 import type { Channel, Category } from '../types/index.ts';
 import { useIPTVStore } from '../store/useIPTVStore.ts';
 
@@ -20,7 +20,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
 }) => {
   const { currentChannel, toggleFavorite } = useIPTVStore();
   const [search, setSearch] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
+  const searchRef = React.useRef<HTMLInputElement>(null);
 
   // Navigation levels
   const [activeCategory, setActiveCategory] = useState<string | null>(null); // platform/group
@@ -98,6 +98,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
 
   // ── Back button logic ──────────────────────────────────────────────────────
   const handleBack = () => {
+    if (search) { setSearch(''); return; }   // back clears search first
     if (activeShow) { setActiveShow(null); return; }
     if (activeCategory) { setActiveCategory(null); return; }
     onBack();
@@ -126,36 +127,43 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
           <ArrowLeft className="w-4 h-4 text-white" />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-white font-bold text-base tracking-widest truncate">{headerTitle}</h1>
+          <h1 className="text-white font-bold text-sm tracking-widest truncate">{headerTitle}</h1>
           {headerSub && <p className="text-xs text-gray-500">{headerSub}</p>}
         </div>
-        <button
-          onClick={() => { setShowSearch(s => !s); setSearch(''); }}
-          className="p-2 rounded-xl bg-gray-800/80 hover:bg-gray-700 transition-colors"
-        >
-          {showSearch ? <X className="w-4 h-4 text-white" /> : <Search className="w-4 h-4 text-white" />}
-        </button>
       </div>
 
-      {/* Search bar */}
-      {showSearch && (
-        <div className="px-4 py-2 border-b border-white/5 shrink-0">
+      {/* ── Always-visible search bar ── */}
+      <div className="px-4 pb-2 shrink-0">
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 111 11a6 6 0 0116 0z" />
+          </svg>
           <input
-            autoFocus
-            type="text"
+            ref={searchRef}
+            type="search"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder={`Pesquisar em ${TITLE_MAP[section]}…`}
-            className="w-full bg-gray-800 border border-white/10 text-white text-sm rounded-xl px-4 py-2.5 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+            className="w-full bg-gray-900 border border-white/10 text-white text-sm rounded-xl pl-9 pr-4 py-2.5 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500 transition-colors"
           />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
-      )}
+      </div>
 
       {/* ── Content ── */}
       <div className="flex-1 overflow-y-auto">
 
         {/* ── Search results ── */}
-        {showSearch && search.trim() && (
+        {search.trim() && (
           <div className="p-4">
             <p className="text-xs text-gray-500 mb-3 uppercase tracking-widest">
               {searchResults.length} resultado{searchResults.length !== 1 ? 's' : ''}
@@ -172,7 +180,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
         {/* ════════════════════════════════════════════ LIVE TV ════════════════════════════════════════════ */}
 
         {/* Live: Category folder grid */}
-        {!showSearch && isLive && !activeCategory && (
+        {!search.trim() && isLive && !activeCategory && (
           <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {/* Favourites */}
             {favoriteChannels.length > 0 && (
@@ -185,7 +193,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
         )}
 
         {/* Live: Channel list inside category */}
-        {!showSearch && isLive && activeCategory && (
+        {!search.trim() && isLive && activeCategory && (
           <div className="divide-y divide-white/5">
             {categoryChannels.map(ch => (
               <LiveChannelRow
@@ -201,7 +209,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
 
         {/* ════════════════════════════════════════════ MOVIES ════════════════════════════════════════════ */}
 
-        {!showSearch && isMovies && (
+        {!search.trim() && isMovies && (
           <div className="py-4 space-y-6">
             {/* Favourites row */}
             {favoriteChannels.length > 0 && (
@@ -227,7 +235,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
         {/* ════════════════════════════════════════════ SERIES ════════════════════════════════════════════ */}
 
         {/* Series: Platform folder grid */}
-        {!showSearch && isSeries && !activeCategory && (
+        {!search.trim() && isSeries && !activeCategory && (
           <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {favoriteChannels.length > 0 && (
               <FavCard count={favoriteChannels.length} onClick={() => setActiveCategory(FAVS_KEY)} />
@@ -239,7 +247,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
         )}
 
         {/* Series: Show cards within platform */}
-        {!showSearch && isSeries && activeCategory && !activeShow && (
+        {!search.trim() && isSeries && activeCategory && !activeShow && (
           <div className="p-3 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-9 gap-2 sm:gap-3">
             {showsInCategory.map(show => (
               <ShowCard
@@ -256,7 +264,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
         )}
 
         {/* Series: Episodes list */}
-        {!showSearch && isSeries && activeCategory && activeShow && (
+        {!search.trim() && isSeries && activeCategory && activeShow && (
           <div className="divide-y divide-white/5">
             {episodesInShow.map(ep => (
               <EpisodeRow
