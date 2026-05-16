@@ -167,16 +167,20 @@ app.get('/proxy/m3u', async (req, res) => {
     const base = `${protocol}://${req.get('host')}`;
 
     // Rewrite every http(s) URL line in the playlist:
-    //  1. Convert Xtream .ts live stream URLs → .m3u8 (HLS manifest)
-    //     so HLS.js gets a parseable manifest instead of raw MPEG-TS bytes.
+    //  1. Convert ONLY Xtream live stream .ts URLs → .m3u8 (HLS manifest)
+    //     Do NOT touch /movie/ or /series/ paths — those are direct video files.
     //  2. Route all URLs through this proxy to bypass CORS.
     const rewritten = body.replace(
       /^(https?:\/\/.+)$/gm,
       (match) => {
-        // Normalise Xtream live stream: /user/pass/ID.ts  →  /user/pass/ID.m3u8
-        const normalized = /\/[^/]+\/[^/]+\/\d+\.ts(\?.*)?$/i.test(match)
-          ? match.replace(/\.ts(\?.*)?$/i, '.m3u8')
-          : match;
+        const lower = match.toLowerCase();
+        // Only normalise live stream .ts → .m3u8 (NOT movie/series paths)
+        const normalized =
+          /\/[^/]+\/[^/]+\/\d+\.ts(\?.*)?$/i.test(lower) &&
+          !lower.includes('/movie/') &&
+          !lower.includes('/series/')
+            ? match.replace(/\.ts(\?.*)?$/i, '.m3u8')
+            : match;
         return `${base}/proxy/stream?url=${encodeURIComponent(normalized)}`;
       }
     );

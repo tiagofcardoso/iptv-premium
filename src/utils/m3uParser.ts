@@ -17,12 +17,19 @@ function generateId(url: string, name: string): string {
 
 /**
  * Normalises a stream URL for maximum browser compatibility.
- * Xtream Codes .ts live URLs → .m3u8 so HLS.js gets a proper manifest.
+ * ONLY converts Xtream Codes live stream .ts URLs → .m3u8 so HLS.js gets a proper manifest.
+ * Does NOT touch movie/series URLs (they have /movie/ or /series/ in the path).
  */
 function normalizeStreamUrl(url: string): string {
   if (!url) return url;
   const lower = url.toLowerCase();
-  if (/\/[^/]+\/[^/]+\/\d+\.ts(\?.*)?$/.test(lower)) {
+  // Only rewrite if it's a live Xtream stream (NOT a movie or series)
+  // Pattern: /user/pass/ID.ts  (exactly 2 path segments before the file)
+  if (
+    /\/[^/]+\/[^/]+\/\d+\.ts(\?.*)?$/.test(lower) &&
+    !lower.includes('/movie/') &&
+    !lower.includes('/series/')
+  ) {
     return url.replace(/\.ts(\?.*)?$/i, '.m3u8');
   }
   return url;
@@ -30,16 +37,20 @@ function normalizeStreamUrl(url: string): string {
 
 /** Detect content type from group-title and URL patterns */
 function detectContentType(group: string, url: string): Channel['contentType'] {
+  const u = url.toLowerCase().split('?')[0]; // strip query string for path matching
   const g = group.toLowerCase();
-  const u = url.toLowerCase();
-  if (u.includes('/movie/') || g.includes('film') || g.includes('movie') || g.includes('filme')) return 'movie';
+
+  // URL path takes priority — Xtream Codes standard paths
+  if (u.includes('/movie/')) return 'movie';
+  if (u.includes('/series/')) return 'series';
+
+  // Group name fallback
+  if (g.includes('film') || g.includes('movie') || g.includes('filme') || g.includes('cinema')) return 'movie';
   if (
-    u.includes('/series/') ||
-    g.includes('serie') ||
-    g.includes('season') ||
-    g.includes('temporada') ||
-    /s\d+e\d+/i.test(u)
+    g.includes('serie') || g.includes('season') || g.includes('temporada') ||
+    /s\d+e\d+/i.test(g) || /s\d+e\d+/i.test(u)
   ) return 'series';
+
   return 'live';
 }
 

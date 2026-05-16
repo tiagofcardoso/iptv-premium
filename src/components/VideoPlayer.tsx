@@ -16,8 +16,17 @@ export interface VideoPlayerHandle {
 }
 
 function detectStreamType(url: string): 'hls' | 'direct' {
-  const lower = url.toLowerCase().split('?')[0];
-  if (lower.endsWith('.ts')) return 'direct';
+  const lower = url.toLowerCase().split('?')[0]; // strip query params for extension check
+  // Known direct video container formats — do NOT feed to HLS.js
+  if (
+    lower.endsWith('.mp4') ||
+    lower.endsWith('.mkv') ||
+    lower.endsWith('.avi') ||
+    lower.endsWith('.mov') ||
+    lower.endsWith('.wmv') ||
+    lower.endsWith('.flv') ||
+    lower.endsWith('.ts')   // raw MPEG-TS (not a manifest)
+  ) return 'direct';
   return 'hls';
 }
 
