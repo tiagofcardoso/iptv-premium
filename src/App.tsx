@@ -50,7 +50,7 @@ function App() {
           });
       }
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Related channels for grid ────────────────────────────────────────────────
@@ -66,9 +66,9 @@ function App() {
 
   // Favorites split by type for grid display
   const favorites = channels.filter(c => c.isFavorite);
-  const favLive    = favorites.filter(c => c.contentType === 'live' || !c.contentType);
-  const favMovies  = favorites.filter(c => c.contentType === 'movie');
-  const favSeries  = favorites.filter(c => c.contentType === 'series');
+  const favLive = favorites.filter(c => c.contentType === 'live' || !c.contentType);
+  const favMovies = favorites.filter(c => c.contentType === 'movie');
+  const favSeries = favorites.filter(c => c.contentType === 'series');
 
   const showEmptyState = channels.length === 0 && !isAutoLoading;
   const showFavorites = channels.length > 0 && favorites.length > 0 && !currentChannel;
@@ -106,18 +106,17 @@ function App() {
           <div className="flex-1" />
 
           {/* Proxy status indicator */}
-          <div className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium ${
-            proxyStatus === 'checking'
+          <div className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium ${proxyStatus === 'checking'
               ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400'
               : proxyStatus === 'online'
-              ? 'bg-green-500/10 border-green-500/20 text-green-400'
-              : 'bg-red-500/10 border-red-500/20 text-red-400'
-          }`}>
+                ? 'bg-green-500/10 border-green-500/20 text-green-400'
+                : 'bg-red-500/10 border-red-500/20 text-red-400'
+            }`}>
             {proxyStatus === 'checking'
               ? <><Loader2 className="w-3 h-3 animate-spin" /> A ligar…</>
               : proxyStatus === 'online'
-              ? <><Wifi className="w-3 h-3" /> Proxy OK</>
-              : <><WifiOff className="w-3 h-3" /> Proxy offline</>
+                ? <><Wifi className="w-3 h-3" /> Proxy OK</>
+                : <><WifiOff className="w-3 h-3" /> Proxy offline</>
             }
           </div>
 

@@ -198,4 +198,37 @@ app.listen(PORT, () => {
   ╚═══════════════════════════════════╝
   Streams are being proxied server-side.
   `);
+
+  // ── Smart Heartbeat ──────────────────────────────────────────────────────────
+  // Self-ping every 10 minutes BUT only between 18:00 and 00:00 Portugal time.
+  // Portugal uses WET (UTC+0) in winter and WEST (UTC+1) in summer.
+  // We use UTC+1 as a safe approximation (covers WEST/summer, the main IPTV season).
+  // Outside this window the service sleeps normally; the frontend handles wake-up on demand.
+
+  const PROXY_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+  const HEARTBEAT_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+
+  function isWithinActiveHours() {
+    // Convert current UTC time to Portugal time (UTC+1 approximation)
+    const now = new Date();
+    const portugalHour = (now.getUTCHours() + 1) % 24;
+    // Active window: 18:00 to 23:59 Portugal time
+    return portugalHour >= 18 && portugalHour < 24;
+  }
+
+  setInterval(async () => {
+    if (!isWithinActiveHours()) {
+      console.log('[Heartbeat] Outside active hours (18h-00h PT) — skipping ping.');
+      return;
+    }
+    try {
+      const res = await fetch(`${PROXY_URL}/status`);
+      console.log(`[Heartbeat] Self-ping OK (${new Date().toISOString()})`);
+    } catch (err) {
+      console.warn('[Heartbeat] Self-ping failed:', err.message);
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+
+  console.log('  Heartbeat active: 18h–00h Portugal time (every 10 min).');
 });
+
