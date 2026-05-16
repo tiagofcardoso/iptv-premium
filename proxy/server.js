@@ -6,7 +6,21 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Allow all origins so the Firebase frontend can access it without Mixed Content/CORS issues
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'HEAD', 'OPTIONS'],
+  allowedHeaders: ['*'],
+}));
+
+// Handle preflight requests for all routes
+app.options('*', cors());
+
+/**
+ * Health check endpoint — also prevents Render cold starts when pinged regularly.
+ */
+app.get('/status', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 /**
  * Rewrites all absolute URLs inside an HLS manifest (.m3u8) to go through this proxy.
@@ -60,13 +74,19 @@ app.get('/proxy/stream', async (req, res) => {
   console.log(`[Proxy] → ${decodedUrl.substring(0, 100)}`);
 
   try {
+    // Set a 15-second timeout to avoid hanging requests on Render's free tier
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
     const upstream = await fetch(decodedUrl, {
+      signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': '*/*',
         'Connection': 'keep-alive',
       },
     });
+    clearTimeout(timeout);
 
     const ct = upstream.headers.get('content-type') || '';
     const isM3u8 =
@@ -77,6 +97,7 @@ app.get('/proxy/stream', async (req, res) => {
     res.status(upstream.status);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
 
     if (!upstream.body) { res.end(); return; }
 
@@ -123,12 +144,17 @@ app.get('/proxy/m3u', async (req, res) => {
   }
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
     const upstream = await fetch(decodeURIComponent(String(targetUrl)), {
+      signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': '*/*',
       },
     });
+    clearTimeout(timeout);
 
     if (!upstream.ok) {
       res.status(upstream.status).json({ error: `Upstream returned ${upstream.status}` });
@@ -168,9 +194,8 @@ app.listen(PORT, () => {
   console.log(`
   ╔═══════════════════════════════════╗
   ║  IPTV CORS Proxy  — port ${PORT}   ║
-  ║  http://localhost:${PORT}            ║
+  ║  /status for health check         ║
   ╚═══════════════════════════════════╝
   Streams are being proxied server-side.
-  Keep this terminal open while using the IPTV player.
   `);
 });

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Menu, Tv, Code2, Globe, Loader2 } from 'lucide-react';
+import { Menu, Tv, Code2, Globe, Loader2, Wifi, WifiOff } from 'lucide-react';
 import Sidebar from './components/Sidebar.tsx';
 import VideoPlayer, { type VideoPlayerHandle } from './components/VideoPlayer.tsx';
 import ChannelGrid from './components/ChannelGrid.tsx';
@@ -7,9 +7,11 @@ import NowPlayingBar from './components/NowPlayingBar.tsx';
 import HistorySection from './components/HistorySection.tsx';
 import { useIPTVStore, getPersistedFavoriteIds } from './store/useIPTVStore.ts';
 import { fetchM3U } from './utils/m3uParser.ts';
+import { PROXY_BASE } from './utils/proxy.ts';
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [proxyStatus, setProxyStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const playerRef = useRef<VideoPlayerHandle>(null);
 
   const {
@@ -17,24 +19,39 @@ function App() {
     playlistUrl, setChannels, setAutoLoading, isAutoLoading, history,
   } = useIPTVStore();
 
-  // ── Auto-reload saved playlist on startup ────────────────────────────────────
+  // ── Wake up proxy & auto-reload saved playlist ───────────────────────────────
   useEffect(() => {
-    if (playlistUrl && channels.length === 0) {
-      setAutoLoading(true);
-      const favIds = getPersistedFavoriteIds();
-      fetchM3U(playlistUrl)
-        .then(parsed => {
-          // Re-apply persisted favorites
-          const withFavs = parsed.map(c => ({ ...c, isFavorite: favIds.has(c.id) }));
-          setChannels(withFavs, playlistUrl);
-        })
-        .catch(err => {
-          console.error('[IPTV] Auto-reload failed:', err);
-          setAutoLoading(false);
-        });
-    }
+    // Ping the proxy to wake it up from Render's cold start
+    const wakeProxy = async () => {
+      try {
+        const res = await fetch(`${PROXY_BASE}/status`, { signal: AbortSignal.timeout(10000) });
+        if (res.ok) {
+          setProxyStatus('online');
+        } else {
+          setProxyStatus('offline');
+        }
+      } catch {
+        setProxyStatus('offline');
+      }
+    };
+
+    wakeProxy().then(() => {
+      if (playlistUrl && channels.length === 0) {
+        setAutoLoading(true);
+        const favIds = getPersistedFavoriteIds();
+        fetchM3U(playlistUrl)
+          .then(parsed => {
+            const withFavs = parsed.map(c => ({ ...c, isFavorite: favIds.has(c.id) }));
+            setChannels(withFavs, playlistUrl);
+          })
+          .catch(err => {
+            console.error('[IPTV] Auto-reload failed:', err);
+            setAutoLoading(false);
+          });
+      }
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // run once on mount only
+  }, []);
 
   // ── Related channels for grid ────────────────────────────────────────────────
   const getRelatedChannels = () => {
@@ -87,6 +104,22 @@ function App() {
           </div>
 
           <div className="flex-1" />
+
+          {/* Proxy status indicator */}
+          <div className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium ${
+            proxyStatus === 'checking'
+              ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400'
+              : proxyStatus === 'online'
+              ? 'bg-green-500/10 border-green-500/20 text-green-400'
+              : 'bg-red-500/10 border-red-500/20 text-red-400'
+          }`}>
+            {proxyStatus === 'checking'
+              ? <><Loader2 className="w-3 h-3 animate-spin" /> A ligar…</>
+              : proxyStatus === 'online'
+              ? <><Wifi className="w-3 h-3" /> Proxy OK</>
+              : <><WifiOff className="w-3 h-3" /> Proxy offline</>
+            }
+          </div>
 
           {/* Auto-loading indicator */}
           {isAutoLoading && (
