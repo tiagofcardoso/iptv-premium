@@ -13,6 +13,21 @@ interface ContentBrowserProps {
 const TITLE_MAP = { live: 'TV AO VIVO', movies: 'FILMES', series: 'SÉRIES' };
 const FAVS_KEY = '__FAVORITOS__';
 
+/**
+ * Returns the most frequently occurring non-empty logo URL among a list of channels.
+ * Series episodes all share the same series poster in tvg-logo, so the most common
+ * logo is the authoritative series banner image.
+ */
+function mostCommonLogo(channels: Channel[]): string {
+  const freq = new Map<string, number>();
+  for (const ch of channels) {
+    if (!ch.logo) continue;
+    freq.set(ch.logo, (freq.get(ch.logo) ?? 0) + 1);
+  }
+  if (freq.size === 0) return '';
+  return [...freq.entries()].sort((a, b) => b[1] - a[1])[0][0];
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ContentBrowser: React.FC<ContentBrowserProps> = ({
@@ -63,7 +78,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
       .map(([name, eps]) => ({
         name,
         episodes: eps.sort((a, b) => ((a.seasonNum ?? 0) - (b.seasonNum ?? 0)) || ((a.episodeNum ?? 0) - (b.episodeNum ?? 0))),
-        logo: eps[0]?.logo ?? '',
+        logo: mostCommonLogo(eps),
         isFavorite: eps.some(e => e.isFavorite),
       }));
   }, [section, activeCategory, sectionChannels, favoriteChannels]);
@@ -83,18 +98,36 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
     return sectionChannels.filter(c => c.group === activeCategory);
   }, [activeCategory, favoriteChannels, sectionChannels]);
 
-  // Search
+  // Search — flat results for live/movies; grouped by show for series
   const searchResults = useMemo(() => {
     if (!search.trim()) return [];
     const q = search.toLowerCase();
     return sectionChannels.filter(c =>
       c.name.toLowerCase().includes(q) || (c.seriesName ?? '').toLowerCase().includes(q)
-    ).slice(0, 80);
+    ).slice(0, 200);
   }, [search, sectionChannels]);
 
   const isLive = section === 'live';
   const isSeries = section === 'series';
   const isMovies = section === 'movies';
+
+  // For series search: deduplicate into unique shows
+  const searchShows = useMemo(() => {
+    if (!search.trim() || !isSeries) return [];
+    const map = new Map<string, { name: string; logo: string; episodes: Channel[]; isFavorite: boolean }>();
+    for (const ch of searchResults) {
+      const key = ch.seriesName ?? ch.name;
+      if (!map.has(key)) map.set(key, { name: key, logo: '', episodes: [], isFavorite: false });
+      const entry = map.get(key)!;
+      entry.episodes.push(ch);
+      if (ch.isFavorite) entry.isFavorite = true;
+    }
+    // Pick best logo per show after all episodes are collected
+    for (const entry of map.values()) {
+      entry.logo = mostCommonLogo(entry.episodes);
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [search, searchResults, isSeries]);
 
   // ── Back button logic ──────────────────────────────────────────────────────
   const handleBack = () => {
@@ -166,14 +199,68 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
         {search.trim() && (
           <div className="p-4">
             <p className="text-xs text-gray-500 mb-3 uppercase tracking-widest">
-              {searchResults.length} resultado{searchResults.length !== 1 ? 's' : ''}
+              {isSeries ? searchShows.length : searchResults.length} resultado{(isSeries ? searchShows.length : searchResults.length) !== 1 ? 's' : ''}
             </p>
-            <div className={`grid gap-2 ${isLive ? 'grid-cols-1' : 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7'}`}>
-              {searchResults.map(ch => isLive
-                ? <LiveChannelRow key={ch.id} channel={ch} isActive={currentChannel?.id === ch.id} onSelect={() => onSelectChannel(ch)} onToggleFav={() => toggleFavorite(ch.id)} />
-                : <PosterCard key={ch.id} channel={ch} isActive={currentChannel?.id === ch.id} onSelect={() => onSelectChannel(ch)} onToggleFav={() => toggleFavorite(ch.id)} />
-              )}
-            </div>
+
+            {/* Series: one card per show */}
+            {isSeries && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-2 sm:gap-3">
+                {activeShow
+                  /* Episode list for the selected show within search */
+                  ? null
+                  : searchShows.map(show => (
+                    <ShowCard
+                      key={show.name}
+                      name={show.name}
+                      logo={show.logo}
+                      episodeCount={show.episodes.length}
+                      isFavorite={show.isFavorite}
+                      isActive={currentChannel ? (currentChannel.seriesName ?? currentChannel.name) === show.name : false}
+                      onClick={() => setActiveShow(show.name)}
+                    />
+                  ))
+                }
+              </div>
+            )}
+
+            {/* Series: episodes of the selected show (within search) */}
+            {isSeries && activeShow && (
+              <>
+                <button
+                  onClick={() => setActiveShow(null)}
+                  className="flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-300 mb-3 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Voltar às séries
+                </button>
+                <div className="divide-y divide-white/5 rounded-xl overflow-hidden">
+                  {(searchShows.find(s => s.name === activeShow)?.episodes ?? [])
+                    .sort((a, b) => ((a.seasonNum ?? 0) - (b.seasonNum ?? 0)) || ((a.episodeNum ?? 0) - (b.episodeNum ?? 0)))
+                    .map(ep => (
+                      <EpisodeRow
+                        key={ep.id}
+                        channel={ep}
+                        isActive={currentChannel?.id === ep.id}
+                        onSelect={() => onSelectChannel(ep)}
+                        onToggleFav={() => toggleFavorite(ep.id)}
+                      />
+                    ))
+                  }
+                </div>
+              </>
+            )}
+
+            {/* Live / Movies: flat list */}
+            {!isSeries && (
+              <div className={`grid gap-2 ${isLive ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7'}`}>
+                {searchResults.map(ch => isLive
+                  ? <LiveChannelRow key={ch.id} channel={ch} isActive={currentChannel?.id === ch.id} onSelect={() => onSelectChannel(ch)} onToggleFav={() => toggleFavorite(ch.id)} />
+                  : <PosterCard key={ch.id} channel={ch} isActive={currentChannel?.id === ch.id} onSelect={() => onSelectChannel(ch)} onToggleFav={() => toggleFavorite(ch.id)} />
+                )}
+              </div>
+            )}
           </div>
         )}
 
