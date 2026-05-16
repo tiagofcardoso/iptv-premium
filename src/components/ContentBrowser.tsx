@@ -413,9 +413,24 @@ interface ShowCardProps {
 }
 
 const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isActive, onClick }) => {
-  // Generate a consistent color from the series name for the gradient fallback
   const hue = Math.abs(name.split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0)) % 360;
   const gradientStyle = { background: `linear-gradient(160deg, hsl(${hue},55%,22%) 0%, hsl(${hue},40%,10%) 100%)` };
+
+  // Reject landscape images (episode screenshots) and show gradient fallback instead
+  const handleImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.target as HTMLImageElement;
+    const isLandscape = img.naturalWidth > img.naturalHeight;
+    if (isLandscape) {
+      img.style.display = 'none';
+      (img.parentElement?.querySelector('.show-fallback') as HTMLElement | null)?.style.setProperty('display', 'flex');
+    }
+  };
+
+  const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.target as HTMLImageElement;
+    img.style.display = 'none';
+    (img.parentElement?.querySelector('.show-fallback') as HTMLElement | null)?.style.setProperty('display', 'flex');
+  };
 
   return (
     <div
@@ -425,39 +440,32 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isActive,
     >
       <div className="aspect-[2/3] relative overflow-hidden">
 
-        {/* Poster image — only shown if it's a genuine series poster (logo not empty) */}
         {logo ? (
           <img
             src={logo} alt={name}
             className="w-full h-full object-cover"
-            onError={e => {
-              // On load error, hide image and show gradient fallback
-              const img = e.target as HTMLImageElement;
-              img.style.display = 'none';
-              (img.parentElement?.querySelector('.show-fallback') as HTMLElement | null)?.style.setProperty('display', 'flex');
-            }}
+            onLoad={handleImgLoad}
+            onError={handleImgError}
           />
         ) : null}
 
-        {/* Gradient fallback — shown when no valid poster */}
+        {/* Gradient fallback — shown when no poster or when landscape screenshot detected */}
         <div
           className="show-fallback absolute inset-0 flex flex-col items-end justify-end p-3 pb-8"
           style={{ ...gradientStyle, display: logo ? 'none' : 'flex' }}
         >
-          {/* Big initial letter */}
           <span
             className="absolute top-3 left-3 font-black leading-none select-none"
             style={{ fontSize: '3.5rem', color: `hsla(${hue},70%,75%,0.25)` }}
           >
             {name.charAt(0).toUpperCase()}
           </span>
-          {/* Series name */}
           <p className="relative z-10 text-white text-xs font-bold leading-tight line-clamp-3 drop-shadow">
             {name}
           </p>
         </div>
 
-        {/* Hover play overlay */}
+        {/* Hover overlay */}
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-center justify-center">
           <div className="opacity-0 group-hover:opacity-100 transition-opacity">
             <div className="w-10 h-10 rounded-full bg-violet-600/90 flex items-center justify-center shadow-lg">
@@ -466,14 +474,12 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isActive,
           </div>
         </div>
 
-        {/* Episode count badge */}
         <div className="absolute bottom-1.5 right-1.5 bg-black/70 backdrop-blur-sm rounded px-1.5 py-0.5">
           <span className="text-white text-[10px] font-bold">{episodeCount} ep</span>
         </div>
       </div>
 
-      {/* Title bar */}
-      <div className="px-1.5 py-1.5" style={logo ? { background: '#111827' } : { ...gradientStyle }}>
+      <div className="px-1.5 py-1.5" style={{ background: '#111827' }}>
         <p className="text-white text-xs font-medium truncate">{name}</p>
       </div>
     </div>
