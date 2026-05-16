@@ -141,6 +141,8 @@ function App() {
             }}
             onForceRefresh={handleForceRefresh}
             lastUpdated={lastUpdated}
+            installPrompt={installPrompt}
+            onInstall={handleInstall}
           />
         )}
 
