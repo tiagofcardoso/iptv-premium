@@ -207,7 +207,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ url }, re
     <div ref={containerRef} className="relative w-full bg-black rounded-xl overflow-hidden aspect-video shadow-2xl group">
       <video
         ref={videoRef}
-        className="w-full h-full object-contain brightness-105 contrast-105 saturate-110"
+        className="w-full h-full object-contain"
         controls
         playsInline
         autoPlay
