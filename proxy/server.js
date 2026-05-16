@@ -12,8 +12,8 @@ app.use(cors({
   allowedHeaders: ['*'],
 }));
 
-// Handle preflight requests for all routes
-app.options('*', cors());
+// Handle preflight requests for all routes (Express 5 compatible wildcard)
+app.options('/{*path}', cors());
 
 /**
  * Health check endpoint — also prevents Render cold starts when pinged regularly.
