@@ -14,9 +14,10 @@ const TITLE_MAP = { live: 'TV AO VIVO', movies: 'FILMES', series: 'SÉRIES' };
 const FAVS_KEY = '__FAVORITOS__';
 
 /**
- * Returns the most frequently occurring non-empty logo URL among a list of channels.
- * Series episodes all share the same series poster in tvg-logo, so the most common
- * logo is the authoritative series banner image.
+ * Returns the most frequently occurring logo URL among a list of channels,
+ * BUT only if it appears in MORE THAN ONE episode.
+ * If every episode has a unique logo, they are episode screenshots — return '' so
+ * the ShowCard renders a styled gradient fallback with the series name.
  */
 function mostCommonLogo(channels: Channel[]): string {
   const freq = new Map<string, number>();
@@ -25,7 +26,9 @@ function mostCommonLogo(channels: Channel[]): string {
     freq.set(ch.logo, (freq.get(ch.logo) ?? 0) + 1);
   }
   if (freq.size === 0) return '';
-  return [...freq.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  const [bestUrl, bestCount] = [...freq.entries()].sort((a, b) => b[1] - a[1])[0];
+  // Only treat as a real series poster if the same image appears in at least 2 episodes
+  return bestCount >= 2 ? bestUrl : '';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -409,42 +412,73 @@ interface ShowCardProps {
   onClick: () => void;
 }
 
-const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isActive, onClick }) => (
-  <div
-    className={`group relative rounded-lg overflow-hidden cursor-pointer transition-all duration-200
-      ${isActive ? 'ring-2 ring-violet-500 scale-[1.02]' : 'hover:scale-[1.04] hover:ring-1 hover:ring-white/20'}`}
-    onClick={onClick}
-  >
-    <div className="aspect-[2/3] bg-gray-900 relative overflow-hidden">
-      {logo ? (
-        <img
-          src={logo} alt={name}
-          className="w-full h-full object-cover"
-          onError={e => { const el = e.target as HTMLImageElement; el.style.display = 'none'; el.nextElementSibling?.classList.remove('hidden'); }}
-        />
-      ) : null}
-      <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-b from-gray-800 to-gray-900 ${logo ? 'hidden' : ''}`}>
-        <Tv className="w-8 h-8 text-gray-600" />
-        <p className="text-gray-500 text-xs text-center px-2 line-clamp-3">{name}</p>
-      </div>
-      {/* Hover overlay */}
-      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-center justify-center">
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="w-10 h-10 rounded-full bg-violet-600/90 flex items-center justify-center">
-            <Play className="w-4 h-4 text-white ml-0.5" />
+const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isActive, onClick }) => {
+  // Generate a consistent color from the series name for the gradient fallback
+  const hue = Math.abs(name.split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0)) % 360;
+  const gradientStyle = { background: `linear-gradient(160deg, hsl(${hue},55%,22%) 0%, hsl(${hue},40%,10%) 100%)` };
+
+  return (
+    <div
+      className={`group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-200
+        ${isActive ? 'ring-2 ring-violet-500 scale-[1.02]' : 'hover:scale-[1.04] hover:ring-1 hover:ring-white/20'}`}
+      onClick={onClick}
+    >
+      <div className="aspect-[2/3] relative overflow-hidden">
+
+        {/* Poster image — only shown if it's a genuine series poster (logo not empty) */}
+        {logo ? (
+          <img
+            src={logo} alt={name}
+            className="w-full h-full object-cover"
+            onError={e => {
+              // On load error, hide image and show gradient fallback
+              const img = e.target as HTMLImageElement;
+              img.style.display = 'none';
+              (img.parentElement?.querySelector('.show-fallback') as HTMLElement | null)?.style.setProperty('display', 'flex');
+            }}
+          />
+        ) : null}
+
+        {/* Gradient fallback — shown when no valid poster */}
+        <div
+          className="show-fallback absolute inset-0 flex flex-col items-end justify-end p-3 pb-8"
+          style={{ ...gradientStyle, display: logo ? 'none' : 'flex' }}
+        >
+          {/* Big initial letter */}
+          <span
+            className="absolute top-3 left-3 font-black leading-none select-none"
+            style={{ fontSize: '3.5rem', color: `hsla(${hue},70%,75%,0.25)` }}
+          >
+            {name.charAt(0).toUpperCase()}
+          </span>
+          {/* Series name */}
+          <p className="relative z-10 text-white text-xs font-bold leading-tight line-clamp-3 drop-shadow">
+            {name}
+          </p>
+        </div>
+
+        {/* Hover play overlay */}
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-center justify-center">
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="w-10 h-10 rounded-full bg-violet-600/90 flex items-center justify-center shadow-lg">
+              <Play className="w-4 h-4 text-white ml-0.5" />
+            </div>
           </div>
         </div>
+
+        {/* Episode count badge */}
+        <div className="absolute bottom-1.5 right-1.5 bg-black/70 backdrop-blur-sm rounded px-1.5 py-0.5">
+          <span className="text-white text-[10px] font-bold">{episodeCount} ep</span>
+        </div>
       </div>
-      {/* Episode count badge */}
-      <div className="absolute bottom-1.5 right-1.5 bg-black/70 rounded px-1.5 py-0.5">
-        <span className="text-white text-[10px] font-bold">{episodeCount} ep</span>
+
+      {/* Title bar */}
+      <div className="px-1.5 py-1.5" style={logo ? { background: '#111827' } : { ...gradientStyle }}>
+        <p className="text-white text-xs font-medium truncate">{name}</p>
       </div>
     </div>
-    <div className="bg-gray-900 px-1.5 py-1.5">
-      <p className="text-white text-xs font-medium truncate">{name}</p>
-    </div>
-  </div>
-);
+  );
+};
 
 // ─── Episode Row ──────────────────────────────────────────────────────────────
 
