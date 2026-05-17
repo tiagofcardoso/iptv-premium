@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useCallback, useEffect } from 'react';
 import { ChevronRight, Play, Heart, ArrowLeft, Tv, Folder, Star } from 'lucide-react';
 import type { Channel, Category } from '../types/index.ts';
 import { useIPTVStore } from '../store/useIPTVStore.ts';
@@ -12,6 +12,67 @@ interface ContentBrowserProps {
 
 const TITLE_MAP = { live: 'TV AO VIVO', movies: 'FILMES', series: 'SÉRIES' };
 const FAVS_KEY = '__FAVORITOS__';
+
+// ─── Long-press hook ──────────────────────────────────────────────────────────
+function useLongPress(callback: () => void, ms = 500) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fired = useRef(false);
+
+  const start = useCallback((_e: React.TouchEvent | React.MouseEvent) => {
+    // Don't interfere with scroll
+    fired.current = false;
+    timerRef.current = setTimeout(() => {
+      fired.current = true;
+      callback();
+    }, ms);
+  }, [callback, ms]);
+
+  const cancel = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }, []);
+
+  const preventClick = useCallback((e: React.MouseEvent) => {
+    if (fired.current) e.stopPropagation();
+  }, []);
+
+  return { onMouseDown: start, onMouseUp: cancel, onMouseLeave: cancel, onTouchStart: start, onTouchEnd: cancel, onTouchMove: cancel, onClick: preventClick };
+}
+
+// ─── Fav Context Menu ─────────────────────────────────────────────────────────
+const FavContextMenu: React.FC<{
+  isFav: boolean;
+  name: string;
+  onToggle: () => void;
+  onClose: () => void;
+}> = ({ isFav, name, onToggle, onClose }) => {
+  useEffect(() => {
+    const handler = () => onClose();
+    window.addEventListener('scroll', handler, { passive: true });
+    return () => window.removeEventListener('scroll', handler);
+  }, [onClose]);
+
+  return (
+    <>
+      {/* backdrop */}
+      <div className="fixed inset-0 z-50" onClick={onClose} />
+      {/* menu */}
+      <div className="fixed left-1/2 bottom-8 -translate-x-1/2 z-50 w-72 bg-gray-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-150">
+        <div className="px-4 py-3 border-b border-white/5">
+          <p className="text-white text-sm font-semibold truncate">{name}</p>
+        </div>
+        <button
+          className="w-full flex items-center gap-3 px-4 py-4 hover:bg-white/5 transition-colors text-left"
+          onClick={() => { onToggle(); onClose(); }}
+        >
+          <span className="text-lg">{isFav ? '💔' : '❤️'}</span>
+          <span className="text-white text-sm">
+            {isFav ? 'Remover dos Favoritos' : 'Adicionar aos Favoritos'}
+          </span>
+        </button>
+      </div>
+    </>
+  );
+};
 
 /** Returns the most frequently occurring logo across episodes.
  * If a single logo dominates (same poster shared by episodes), that's the series poster.
@@ -546,66 +607,84 @@ const CategoryRow: React.FC<CategoryRowProps> = ({ category, currentChannelId, o
 
 interface PosterCardProps { channel: Channel; isActive: boolean; onSelect: () => void; onToggleFav: () => void; }
 
-const PosterCard: React.FC<PosterCardProps> = ({ channel, isActive, onSelect, onToggleFav }) => (
-  <div
-    className={`group relative rounded-lg overflow-hidden cursor-pointer transition-all duration-200 shrink-0 w-28 sm:w-32
-      ${isActive ? 'ring-2 ring-violet-500 scale-[1.02]' : 'hover:scale-[1.04] hover:ring-1 hover:ring-white/20'}`}
-    onClick={onSelect}
-  >
-    <div className="aspect-[2/3] bg-gray-900 relative overflow-hidden">
-      {channel.logo ? (
-        <img src={channel.logo} alt={channel.name} className="w-full h-full object-cover"
-          onError={e => { const el = e.target as HTMLImageElement; el.style.display = 'none'; el.nextElementSibling?.classList.remove('hidden'); }} />
-      ) : null}
-      <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-b from-gray-800 to-gray-900 ${channel.logo ? 'hidden' : ''}`}>
-        <Tv className="w-8 h-8 text-gray-600" />
-        <p className="text-gray-500 text-xs text-center px-2 line-clamp-3">{channel.name}</p>
-      </div>
-      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-center justify-center">
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="w-10 h-10 rounded-full bg-violet-600/90 flex items-center justify-center">
-            <Play className="w-4 h-4 text-white ml-0.5" />
+const PosterCard: React.FC<PosterCardProps> = ({ channel, isActive, onSelect, onToggleFav }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const lp = useLongPress(() => setMenuOpen(true));
+
+  return (
+    <>
+      {menuOpen && <FavContextMenu isFav={!!channel.isFavorite} name={channel.name} onToggle={onToggleFav} onClose={() => setMenuOpen(false)} />}
+      <div
+        {...lp}
+        className={`group relative rounded-lg overflow-hidden cursor-pointer transition-all duration-200 shrink-0 w-28 sm:w-32
+          ${isActive ? 'ring-2 ring-violet-500 scale-[1.02]' : 'hover:scale-[1.04] hover:ring-1 hover:ring-white/20'}`}
+        onClick={onSelect}
+      >
+        <div className="aspect-[2/3] bg-gray-900 relative overflow-hidden">
+          {channel.logo ? (
+            <img src={channel.logo} alt={channel.name} className="w-full h-full object-cover"
+              onError={e => { const el = e.target as HTMLImageElement; el.style.display = 'none'; el.nextElementSibling?.classList.remove('hidden'); }} />
+          ) : null}
+          <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-b from-gray-800 to-gray-900 ${channel.logo ? 'hidden' : ''}`}>
+            <Tv className="w-8 h-8 text-gray-600" />
+            <p className="text-gray-500 text-xs text-center px-2 line-clamp-3">{channel.name}</p>
           </div>
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-center justify-center">
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="w-10 h-10 rounded-full bg-violet-600/90 flex items-center justify-center">
+                <Play className="w-4 h-4 text-white ml-0.5" />
+              </div>
+            </div>
+          </div>
+          <button onClick={e => { e.stopPropagation(); onToggleFav(); }}
+            className={`absolute top-1.5 right-1.5 p-1 rounded-full transition-all
+              ${channel.isFavorite ? 'opacity-100 text-pink-400 bg-black/50' : 'opacity-0 group-hover:opacity-100 text-white/70 bg-black/50 hover:text-pink-400'}`}>
+            <Heart className={`w-3 h-3 ${channel.isFavorite ? 'fill-current' : ''}`} />
+          </button>
+        </div>
+        <div className="bg-gray-900 px-1.5 py-1.5">
+          <p className="text-white text-xs font-medium truncate">{channel.seriesName ?? channel.name}</p>
         </div>
       </div>
-      <button onClick={e => { e.stopPropagation(); onToggleFav(); }}
-        className={`absolute top-1.5 right-1.5 p-1 rounded-full transition-all
-          ${channel.isFavorite ? 'opacity-100 text-pink-400 bg-black/50' : 'opacity-0 group-hover:opacity-100 text-white/70 bg-black/50 hover:text-pink-400'}`}>
-        <Heart className={`w-3 h-3 ${channel.isFavorite ? 'fill-current' : ''}`} />
-      </button>
-    </div>
-    <div className="bg-gray-900 px-1.5 py-1.5">
-      <p className="text-white text-xs font-medium truncate">{channel.seriesName ?? channel.name}</p>
-    </div>
-  </div>
-);
+    </>
+  );
+};
 
 // ─── Live Channel Row ─────────────────────────────────────────────────────────
 
 interface LiveChannelRowProps { channel: Channel; isActive: boolean; onSelect: () => void; onToggleFav: () => void; }
 
-const LiveChannelRow: React.FC<LiveChannelRowProps> = ({ channel, isActive, onSelect, onToggleFav }) => (
-  <div
-    className={`group flex items-center gap-3 px-4 py-3 cursor-pointer transition-all
-      ${isActive ? 'bg-violet-600/15 border-l-2 border-violet-500' : 'hover:bg-white/5 border-l-2 border-transparent'}`}
-    onClick={onSelect}
-  >
-    <div className="w-10 h-10 rounded-lg bg-gray-800 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
-      {channel.logo
-        ? <img src={channel.logo} alt={channel.name} className="w-full h-full object-contain p-0.5" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-        : <Tv className="w-4 h-4 text-gray-600" />
-      }
-    </div>
-    <div className="flex-1 min-w-0">
-      <p className={`text-sm font-medium truncate transition-colors ${isActive ? 'text-violet-300' : 'text-gray-200 group-hover:text-white'}`}>{channel.name}</p>
-      <p className="text-xs text-gray-600 truncate">{channel.group}</p>
-    </div>
-    {isActive && <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />}
-    <button onClick={e => { e.stopPropagation(); onToggleFav(); }}
-      className={`p-1.5 rounded-lg transition-all ${channel.isFavorite ? 'text-pink-400' : 'opacity-0 group-hover:opacity-100 text-gray-600 hover:text-pink-400'}`}>
-      <Heart className={`w-3.5 h-3.5 ${channel.isFavorite ? 'fill-current' : ''}`} />
-    </button>
-  </div>
-);
+const LiveChannelRow: React.FC<LiveChannelRowProps> = ({ channel, isActive, onSelect, onToggleFav }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const lp = useLongPress(() => setMenuOpen(true));
+
+  return (
+    <>
+      {menuOpen && <FavContextMenu isFav={!!channel.isFavorite} name={channel.name} onToggle={onToggleFav} onClose={() => setMenuOpen(false)} />}
+      <div
+        {...lp}
+        className={`group flex items-center gap-3 px-4 py-3 cursor-pointer transition-all
+          ${isActive ? 'bg-violet-600/15 border-l-2 border-violet-500' : 'hover:bg-white/5 border-l-2 border-transparent'}`}
+        onClick={onSelect}
+      >
+        <div className="w-10 h-10 rounded-lg bg-gray-800 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
+          {channel.logo
+            ? <img src={channel.logo} alt={channel.name} className="w-full h-full object-contain p-0.5" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            : <Tv className="w-4 h-4 text-gray-600" />
+          }
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className={`text-sm font-medium truncate transition-colors ${isActive ? 'text-violet-300' : 'text-gray-200 group-hover:text-white'}`}>{channel.name}</p>
+          <p className="text-xs text-gray-600 truncate">{channel.group}</p>
+        </div>
+        {isActive && <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />}
+        <button onClick={e => { e.stopPropagation(); onToggleFav(); }}
+          className={`p-1.5 rounded-lg transition-all ${channel.isFavorite ? 'text-pink-400' : 'opacity-0 group-hover:opacity-100 text-gray-600 hover:text-pink-400'}`}>
+          <Heart className={`w-3.5 h-3.5 ${channel.isFavorite ? 'fill-current' : ''}`} />
+        </button>
+      </div>
+    </>
+  );
+};
 
 export default ContentBrowser;

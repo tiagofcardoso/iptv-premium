@@ -43,8 +43,10 @@ function App() {
 
   // ── Replace initial history entry so the very first "back" stays in-app ──────
   useEffect(() => {
-    // Replace the initial browser entry with our home state
-    window.history.replaceState({ screen: 'home' } satisfies NavState, '');
+    // Replace the initial browser entry with a sentinel "behind home" entry
+    // so the very first back press goes to the sentinel and we can intercept it
+    window.history.replaceState({ screen: '__sentinel__' }, '');
+    window.history.pushState({ screen: 'home' } satisfies NavState, '');
   }, []);
 
   // ── Handle hardware/browser back button ──────────────────────────────────────
@@ -52,14 +54,17 @@ function App() {
     const onPopState = (e: PopStateEvent) => {
       const state = e.state as NavState | null;
       const target = state?.screen ?? 'home';
-      setScreen(target);
 
-      // If navigating away from player, stop channel but keep section
-      if (target !== 'player') {
-        setCurrentChannel(null as any);
+      // If we hit the sentinel (behind the first home entry), push home again
+      // so the user can never accidentally exit the app via back
+      if ((target as string) === '__sentinel__' || target === null) {
+        window.history.pushState({ screen: 'home' } satisfies NavState, '');
+        setScreen('home');
+        return;
       }
 
-      // Close sidebar on any navigation
+      setScreen(target as NavScreen);
+      if (target !== 'player') setCurrentChannel(null as any);
       setShowSidebar(false);
     };
 
@@ -172,6 +177,17 @@ function App() {
   const moviesCount = channels.filter(c => c.contentType === 'movie').length;
   const seriesCount = channels.filter(c => c.contentType === 'series').length;
 
+  // ── Playlist context for prev/next in player ──────────────────────────────────
+  const sectionChannels = screen === 'player' && currentChannel
+    ? channels.filter(c => c.contentType === currentChannel.contentType)
+    : [];
+  const currentIsLive = currentChannel?.contentType === 'live' || currentChannel?.contentType == null;
+
+  const handleNavigateChannel = useCallback((id: string) => {
+    const ch = channels.find(c => c.id === id);
+    if (ch) setCurrentChannel(ch);
+  }, [channels, setCurrentChannel]);
+
 
   return (
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden font-sans">
@@ -262,7 +278,14 @@ function App() {
           {/* Player — full screen on mobile, centered on desktop */}
             <div className="flex-1 flex items-center justify-center bg-black">
               <div className="w-full h-full sm:max-w-6xl sm:p-4 flex items-center">
-                <VideoPlayer ref={playerRef} url={currentChannel.url} />
+                <VideoPlayer
+                  ref={playerRef}
+                  url={currentChannel.url}
+                  playlist={sectionChannels}
+                  currentId={currentChannel.id}
+                  onNavigate={handleNavigateChannel}
+                  isLive={currentIsLive}
+                />
               </div>
             </div>
           </div>
