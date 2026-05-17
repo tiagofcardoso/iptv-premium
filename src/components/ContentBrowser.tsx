@@ -278,6 +278,11 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
                       isFavorite={show.isFavorite}
                       isActive={currentChannel ? (currentChannel.seriesName ?? currentChannel.name) === show.name : false}
                       onClick={() => setActiveShow(show.name)}
+                      onToggleFav={() => {
+                        if (show.episodes.length > 0) {
+                          toggleFavorite(show.episodes[0].id);
+                        }
+                      }}
                     />
                   ))
                 }
@@ -406,6 +411,12 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
                 isFavorite={show.isFavorite}
                 isActive={currentChannel ? (currentChannel.seriesName ?? currentChannel.name) === show.name : false}
                 onClick={() => setActiveShow(show.name)}
+                onToggleFav={() => {
+                  // Toggle favorite on the first episode to mark the series as favorite
+                  if (show.episodes.length > 0) {
+                    toggleFavorite(show.episodes[0].id);
+                  }
+                }}
               />
             ))}
           </div>
@@ -468,9 +479,12 @@ interface ShowCardProps {
   isFavorite: boolean;
   isActive: boolean;
   onClick: () => void;
+  onToggleFav: () => void;
 }
 
-const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isActive, onClick }) => {
+const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isFavorite, isActive, onClick, onToggleFav }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const lp = useLongPress(() => setMenuOpen(true));
   const hue = Math.abs(name.split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0)) % 360;
   const gradientStyle = { background: `linear-gradient(160deg, hsl(${hue},55%,22%) 0%, hsl(${hue},40%,10%) 100%)` };
 
@@ -481,14 +495,17 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isActive,
   };
 
   return (
-    <div
-      className={`group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-200
-        ${isActive ? 'ring-2 ring-violet-500 scale-[1.02]' : 'hover:scale-[1.04] hover:ring-1 hover:ring-white/20'}`}
-      onClick={onClick}
-    >
-      <div className="aspect-[2/3] relative overflow-hidden">
+    <>
+      {menuOpen && <FavContextMenu isFav={isFavorite} name={name} onToggle={onToggleFav} onClose={() => setMenuOpen(false)} />}
+      <div
+        {...lp}
+        className={`group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-200
+          ${isActive ? 'ring-2 ring-violet-500 scale-[1.02]' : 'hover:scale-[1.04] hover:ring-1 hover:ring-white/20'}`}
+        onClick={onClick}
+      >
+        <div className="aspect-[2/3] relative overflow-hidden">
 
-        {logo ? (
+          {logo ? (
           <img
             src={logo} alt={name}
             className="w-full h-full object-cover"
@@ -524,12 +541,19 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isActive,
         <div className="absolute bottom-1.5 right-1.5 bg-black/70 backdrop-blur-sm rounded px-1.5 py-0.5">
           <span className="text-white text-[10px] font-bold">{episodeCount} ep</span>
         </div>
+
+        {isFavorite && (
+          <div className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/50 text-pink-400">
+            <Heart className="w-3 h-3 fill-current" />
+          </div>
+        )}
       </div>
 
-      <div className="bg-gray-900 px-1.5 py-1.5">
+      <div className="bg-gray-900 px-1.5 py-1.5 flex items-center justify-between gap-1">
         <p className="text-white text-xs font-medium truncate">{name}</p>
       </div>
     </div>
+    </>
   );
 };
 
