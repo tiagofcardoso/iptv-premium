@@ -68,11 +68,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
   }));
 
   // ── Controls auto-hide ────────────────────────────────────────────────────────
+  // On touch devices (mobile/TV): auto-hide after 3.5s
+  // On desktop (mouse): always visible
+  const isTouchDevice = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+
   const showControls = useCallback(() => {
     setControlsVisible(true);
+    if (!isTouchDevice) return; // desktop: always keep visible
     if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
     hideControlsTimer.current = setTimeout(() => setControlsVisible(false), 3500);
-  }, []);
+  }, [isTouchDevice]);
 
   const goFullscreen = useCallback(() => {
     const el = containerRef.current;
