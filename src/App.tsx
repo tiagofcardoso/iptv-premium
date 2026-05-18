@@ -327,6 +327,15 @@ function App() {
   const handleSelectChannel = (channel: any) => {
     setCurrentChannel(channel);
     navigateTo('player');
+    
+    // Request fullscreen immediately inside the user click gesture!
+    setTimeout(() => {
+      try {
+        playerRef.current?.requestFullscreen();
+      } catch (err) {
+        console.warn('Auto-fullscreen on select blocked or failed:', err);
+      }
+    }, 80);
   };
 
   // ── Content counts ────────────────────────────────────────────────────────────

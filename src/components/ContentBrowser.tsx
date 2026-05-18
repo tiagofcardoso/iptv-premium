@@ -139,12 +139,14 @@ function useLongPress(callback: () => void, onClickAction?: (e: any) => void, ms
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLongPressActive = useRef(false);
   const startTime = useRef<number>(0);
+  const hasMoved = useRef<boolean>(false);
 
   const start = useCallback((e?: React.TouchEvent | React.MouseEvent | React.KeyboardEvent) => {
     if (e && 'key' in e && e.key !== 'Enter' && e.key !== ' ') return;
     if (timerRef.current) return; // Prevent restart on key hold auto-repeat
 
     isLongPressActive.current = false;
+    hasMoved.current = false;
     startTime.current = Date.now();
 
     timerRef.current = setTimeout(() => {
@@ -160,10 +162,20 @@ function useLongPress(callback: () => void, onClickAction?: (e: any) => void, ms
     }
   }, []);
 
+  const handleTouchMove = useCallback(() => {
+    hasMoved.current = true;
+    cancel();
+  }, [cancel]);
+
   const end = useCallback((e?: React.TouchEvent | React.MouseEvent | React.KeyboardEvent) => {
     if (e && 'key' in e && e.key !== 'Enter' && e.key !== ' ') return;
     
     cancel();
+
+    if (hasMoved.current) {
+      hasMoved.current = false;
+      return;
+    }
 
     const duration = Date.now() - startTime.current;
     
@@ -196,7 +208,7 @@ function useLongPress(callback: () => void, onClickAction?: (e: any) => void, ms
     onMouseLeave: cancel, 
     onTouchStart: start, 
     onTouchEnd: end, 
-    onTouchMove: cancel,
+    onTouchMove: handleTouchMove,
     onKeyDown: start,
     onKeyUp: end,
     onContextMenu: handleContextMenu,

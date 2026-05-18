@@ -191,8 +191,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     setPaused(false);
     retryCountRef.current = 0;
 
-    const proxied = proxyUrl(streamUrl);
     const streamType = detectStreamType(streamUrl);
+    const proxied = streamType === 'direct' ? streamUrl : proxyUrl(streamUrl);
 
     const onReady = () => {
       clearLoadTimeout();
@@ -214,17 +214,20 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
               video.currentTime = time;
               console.log(`[Player] Resumed playback to ${time}s`);
             };
-            if (video.readyState >= 1) {
-              seek();
-            } else {
-              video.addEventListener('loadedmetadata', seek, { once: true });
-            }
+            
+            seek();
+            // Robust multi-phase seek fallback to fully survive initial player state resets
+            setTimeout(seek, 150);
+            setTimeout(seek, 300);
+            setTimeout(seek, 600);
+            video.addEventListener('playing', seek, { once: true });
+            video.addEventListener('canplay', seek, { once: true });
           }
         }
       }
 
       // Auto-fullscreen — deferred so it runs inside the play event (user gesture chain)
-      setTimeout(() => { if (!fullscreenTriggered.current) { goFullscreen(); fullscreenTriggered.current = true; } }, 200);
+      setTimeout(() => { if (!fullscreenTriggered.current) { goFullscreen(); fullscreenTriggered.current = true; } }, 50);
     };
 
     // ── HLS.js ─────────────────────────────────────────────────────────────────
