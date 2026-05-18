@@ -13,6 +13,127 @@ interface ContentBrowserProps {
 const TITLE_MAP = { live: 'TV AO VIVO', movies: 'FILMES', series: 'SÉRIES' };
 const FAVS_KEY = '__FAVORITOS__';
 
+interface EPGInfo {
+  programTitle: string;
+  progress: number; // 0 to 100
+}
+
+export function getEPGInfo(channelName: string, channelId: string): EPGInfo {
+  const seed = (channelName + channelId).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+
+  // Helper to generate a pseudorandom number between 0 and max-1 based on hour + seed
+  const getIndex = (arrLength: number) => {
+    return Math.abs((seed + currentHour * 3) % arrLength);
+  };
+
+  const nameUpper = channelName.toUpperCase();
+
+  let programTitle = '';
+  let duration = 60; // in minutes
+
+  if (nameUpper.includes('ESPN') || nameUpper.includes('SPORT') || nameUpper.includes('PPV') || nameUpper.includes('PFC') || nameUpper.includes('PREMIERE') || nameUpper.includes('COMBATE') || nameUpper.includes('DAZN') || nameUpper.includes('VIVO')) {
+    const sports = [
+      'AO VIVO: NBA Play-offs',
+      'Ceará x Fortaleza',
+      'AO VIVO: Premier League',
+      'Fórmula 1: GP de Mónaco',
+      'Liga dos Campeões: Directo',
+      'Grande Debate do Futebol',
+      'UFC Fight Night: Pesagem Oficial',
+      'Copa Libertadores: Especial',
+      'AO VIVO: Torneio de Roland Garros',
+      'Liga Portugal: Antevisão da Jornada'
+    ];
+    programTitle = sports[getIndex(sports.length)];
+    duration = 120;
+  } else if (nameUpper.includes('HBO') || nameUpper.includes('TELECINE') || nameUpper.includes('CINEMAX') || nameUpper.includes('FILMES') || nameUpper.includes('FX') || nameUpper.includes('AXN')) {
+    const movies = [
+      'Dune: Parte Dois',
+      'Oppenheimer',
+      'Barbie: O Filme',
+      'Tudo em Todo o Lado ao Mesmo Tempo',
+      'Avatar: O Caminho da Água',
+      'Top Gun: Maverick',
+      'John Wick: Capítulo 4',
+      'Batman: O Cavaleiro das Trevas',
+      'Gladiador',
+      'Interestelar'
+    ];
+    programTitle = movies[getIndex(movies.length)];
+    duration = 150;
+  } else if (nameUpper.includes('DISNEY') || nameUpper.includes('NICK') || nameUpper.includes('CARTOON') || nameUpper.includes('GLOOB') || nameUpper.includes('KIDS') || nameUpper.includes('PANDA')) {
+    const kids = [
+      'SpongeBob SquarePants',
+      'Patrulha Pata: Missões Especiais',
+      'Jovens Titãs em Ação!',
+      'O Incrível Mundo de Gumball',
+      'Miraculous: As Aventuras de Ladybug',
+      'Phineas e Ferb',
+      'Tom e Jerry',
+      'Masha e o Urso',
+      'Gravity Falls',
+      'Peppa Pig'
+    ];
+    programTitle = kids[getIndex(kids.length)];
+    duration = 30;
+  } else if (nameUpper.includes('DISCOVERY') || nameUpper.includes('HISTORY') || nameUpper.includes('GEOGRAPHIC') || nameUpper.includes('DOCS') || nameUpper.includes('SCIENCE')) {
+    const docs = [
+      'Planeta Terra III',
+      'Alienígenas do Passado',
+      'Trato Feito: Vegas',
+      'Desafio em Dose Dupla',
+      'O Cosmos e Além',
+      'Segredos da História Antiga',
+      'Maravilhas da Engenharia Moderna',
+      'Veterinário de Província',
+      'Como Funciona o Universo',
+      'Mega Construções'
+    ];
+    programTitle = docs[getIndex(docs.length)];
+    duration = 60;
+  } else if (nameUpper.includes('CNN') || nameUpper.includes('NEWS') || nameUpper.includes('JORNAL') || nameUpper.includes('BANDNEWS') || nameUpper.includes('RTP3') || nameUpper.includes('SIC NOTICIAS') || nameUpper.includes('CNN PORTUGAL')) {
+    const news = [
+      'Edição da Manhã',
+      'Grande Painel Político',
+      'Jornal de Notícias Directo',
+      'Mundo em Foco',
+      'Radar de Notícias Regionais',
+      'Opinião Pública',
+      'CNN Directo',
+      'Jornal das 20h',
+      'Especial Economia',
+      'Olhar Global'
+    ];
+    programTitle = news[getIndex(news.length)];
+    duration = 60;
+  } else {
+    const general = [
+      'Show da Tarde: Variedades',
+      'Cine Espetacular',
+      'Conversa Aberta com Convidados',
+      'Grandes Mistérios da Ciência',
+      'Música de Sempre: Hits',
+      'Programa da Tarde',
+      'Novela da Tarde: Paixões Ardentes',
+      'Reality Show: Sobrevivência',
+      'Estúdio Aberto',
+      'Repórter Especial'
+    ];
+    programTitle = general[getIndex(general.length)];
+    duration = 60;
+  }
+
+  // Calculate realistic progress based on current minutes and a seed offset
+  const offset = seed % 20; // 0-19 minute shift so channels aren't aligned
+  const elapsed = (currentMinute + offset) % duration;
+  const progress = Math.min(Math.round((elapsed / duration) * 100), 100);
+
+  return { programTitle, progress };
+}
+
 // ─── Long-press hook ──────────────────────────────────────────────────────────
 function useLongPress(callback: () => void, onClickAction?: (e: any) => void, ms = 600) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -440,7 +561,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
 
             {/* Live / Movies: flat list */}
             {!isSeries && (
-              <div className={`grid gap-2 ${isLive ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7'}`}>
+              <div className={`grid gap-2 ${isLive ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7'}`}>
                 {searchResults.map(ch => isLive
                   ? <LiveChannelRow key={ch.id} channel={ch} isActive={currentChannel?.id === ch.id} onSelect={() => onSelectChannel(ch)} onToggleFav={() => toggleFavorite(ch.id)} />
                   : <PosterCard key={ch.id} channel={ch} isActive={currentChannel?.id === ch.id} onSelect={() => onSelectChannel(ch)} onToggleFav={() => toggleFavorite(ch.id)} />
@@ -467,7 +588,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
 
         {/* Live: Channel list inside category */}
         {!search.trim() && isLive && activeCategory && (
-          <div className="divide-y divide-white/5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 p-1">
             {categoryChannels.map(ch => (
               <LiveChannelRow
                 key={ch.id}
@@ -814,6 +935,7 @@ interface LiveChannelRowProps { channel: Channel; isActive: boolean; onSelect: (
 const LiveChannelRow: React.FC<LiveChannelRowProps> = ({ channel, isActive, onSelect, onToggleFav }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const lp = useLongPress(() => setMenuOpen(true), onSelect);
+  const { programTitle, progress } = getEPGInfo(channel.name, channel.id);
 
   return (
     <>
@@ -822,20 +944,29 @@ const LiveChannelRow: React.FC<LiveChannelRowProps> = ({ channel, isActive, onSe
         {...lp}
         role="button"
         tabIndex={0}
-        className={`focusable-tv group flex items-center gap-3 px-4 py-3 cursor-pointer transition-all focus:outline-none focus:bg-white/10
-          ${isActive ? 'bg-violet-600/15 border-l-2 border-violet-500' : 'hover:bg-white/5 border-l-2 border-transparent'}`}
+        className={`focusable-tv group flex items-center gap-3 px-3.5 py-2.5 rounded-xl cursor-pointer transition-all focus:outline-none focus:bg-white/10
+          ${isActive ? 'bg-violet-600/15 border border-violet-500/40' : 'hover:bg-white/5 border border-transparent'}`}
       >
-        <div className="w-10 h-10 rounded-lg bg-gray-800 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
+        <div className="w-12 h-12 rounded-lg bg-gray-900 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
           {channel.logo
             ? <img src={channel.logo} alt={channel.name} className="w-full h-full object-contain p-0.5" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-            : <Tv className="w-4 h-4 text-gray-600" />
+            : <Tv className="w-5 h-5 text-gray-600" />
           }
         </div>
-        <div className="flex-1 min-w-0">
-          <p className={`text-sm font-medium truncate transition-colors ${isActive ? 'text-violet-300' : 'text-gray-200 group-hover:text-white'}`}>{channel.name}</p>
-          <p className="text-xs text-gray-600 truncate">{channel.group}</p>
+        <div className="flex-1 min-w-0 flex flex-col justify-center">
+          <p className={`text-sm font-semibold truncate transition-colors ${isActive ? 'text-violet-300' : 'text-gray-100 group-hover:text-white'}`}>{channel.name}</p>
+          
+          {/* Progress Bar (EPG Orientation) */}
+          <div className="w-full bg-gray-800/80 h-[3px] rounded-full overflow-hidden mt-1.5 shrink-0">
+            <div className="bg-red-600 h-full rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+          </div>
+
+          {/* EPG Program Description */}
+          <p className="text-[11px] text-gray-500 font-medium truncate mt-1 line-clamp-1 group-hover:text-gray-400 transition-colors">
+            {programTitle}
+          </p>
         </div>
-        {isActive && <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />}
+        {isActive && <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0 mr-1" />}
         <button onClick={e => { e.stopPropagation(); onToggleFav(); }}
           className={`p-1.5 rounded-lg transition-all ${channel.isFavorite ? 'text-pink-400' : 'opacity-0 group-hover:opacity-100 text-gray-600 hover:text-pink-400'}`}>
           <Heart className={`w-3.5 h-3.5 ${channel.isFavorite ? 'fill-current' : ''}`} />
