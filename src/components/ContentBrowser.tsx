@@ -14,7 +14,7 @@ const TITLE_MAP = { live: 'TV AO VIVO', movies: 'FILMES', series: 'SÉRIES' };
 const FAVS_KEY = '__FAVORITOS__';
 
 // ─── Long-press hook ──────────────────────────────────────────────────────────
-function useLongPress(callback: () => void, ms = 500) {
+function useLongPress(callback: () => void, onClickAction?: (e: any) => void, ms = 500) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fired = useRef(false);
 
@@ -36,12 +36,22 @@ function useLongPress(callback: () => void, ms = 500) {
     }
   }, []);
 
+  const handleKeyUp = useCallback((e: React.KeyboardEvent) => {
+    cancel();
+    if (!fired.current && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      if (onClickAction) onClickAction(e);
+    }
+  }, [cancel, onClickAction]);
+
   const preventClick = useCallback((e: React.MouseEvent | React.KeyboardEvent) => {
     if (fired.current) {
       e.preventDefault();
       e.stopPropagation();
+    } else {
+      if (onClickAction && e.type === 'click') onClickAction(e);
     }
-  }, []);
+  }, [onClickAction]);
 
   return { 
     onMouseDown: start, 
@@ -51,7 +61,7 @@ function useLongPress(callback: () => void, ms = 500) {
     onTouchEnd: cancel, 
     onTouchMove: cancel,
     onKeyDown: start,
-    onKeyUp: cancel,
+    onKeyUp: handleKeyUp,
     onClick: preventClick 
   };
 }
@@ -528,31 +538,31 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
 // ─── Small shared cards ───────────────────────────────────────────────────────
 
 const FavCard: React.FC<{ count: number; onClick: () => void }> = ({ count, onClick }) => (
-  <div
-    tabIndex={0}
+  <button
+    type="button"
     onClick={onClick}
-    className="group flex items-center gap-3 p-3 rounded-xl bg-gradient-to-br from-yellow-900/50 to-yellow-950 border border-yellow-500/30 hover:border-yellow-400/60 transition-all text-left focus:outline-none focus:ring-2 focus:ring-yellow-400/50"
+    className="w-full group flex items-center gap-3 p-3 rounded-xl bg-gradient-to-br from-yellow-900/50 to-yellow-950 border border-yellow-500/30 hover:border-yellow-400/60 transition-all text-left focus:outline-none focus:ring-2 focus:ring-yellow-400/50"
   >
     <Star className="w-5 h-5 text-yellow-400 shrink-0 fill-yellow-400" />
     <div className="min-w-0 flex-1">
       <p className="text-sm text-yellow-200 font-semibold truncate group-hover:text-yellow-100">Favoritos</p>
       <p className="text-xs text-yellow-600">{count}</p>
     </div>
-  </div>
+  </button>
 );
 
 const CategoryFolderCard: React.FC<{ name: string; count: number; onClick: () => void }> = ({ name, count, onClick }) => (
-  <div
-    tabIndex={0}
+  <button
+    type="button"
     onClick={onClick}
-    className="group flex items-center gap-3 p-3 rounded-xl bg-gray-900 border border-white/5 hover:border-violet-500/40 hover:bg-gray-800 transition-all text-left focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+    className="w-full group flex items-center gap-3 p-3 rounded-xl bg-gray-900 border border-white/5 hover:border-violet-500/40 hover:bg-gray-800 transition-all text-left focus:outline-none focus:ring-2 focus:ring-violet-500/50"
   >
     <Folder className="w-5 h-5 text-violet-400 shrink-0" />
     <div className="min-w-0 flex-1">
       <p className="text-sm text-white font-medium truncate group-hover:text-violet-300 transition-colors">{name}</p>
       <p className="text-xs text-gray-600">{count}</p>
     </div>
-  </div>
+  </button>
 );
 
 // ─── Show Card (one per series title) ────────────────────────────────────────
@@ -569,7 +579,7 @@ interface ShowCardProps {
 
 const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isFavorite, isActive, onClick, onToggleFav }) => {
   const [menuOpen, setMenuOpen] = useState(false);
-  const lp = useLongPress(() => setMenuOpen(true));
+  const lp = useLongPress(() => setMenuOpen(true), onClick);
   const hue = Math.abs(name.split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0)) % 360;
   const gradientStyle = { background: `linear-gradient(160deg, hsl(${hue},55%,22%) 0%, hsl(${hue},40%,10%) 100%)` };
 
@@ -584,10 +594,10 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isFavorit
       {menuOpen && <FavContextMenu isFav={isFavorite} name={name} onToggle={onToggleFav} onClose={() => setMenuOpen(false)} />}
       <div
         {...lp}
+        role="button"
         tabIndex={0}
         className={`group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-200
           ${isActive ? 'ring-2 ring-violet-500 scale-[1.02]' : 'hover:scale-[1.04] hover:ring-1 hover:ring-white/20 focus:outline-none focus:ring-2 focus:ring-violet-500'}`}
-        onClick={onClick}
       >
         <div className="aspect-[2/3] relative overflow-hidden">
 
@@ -647,13 +657,16 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isFavorit
 
 interface EpisodeRowProps { channel: Channel; isActive: boolean; onSelect: () => void; onToggleFav: () => void; }
 
-const EpisodeRow: React.FC<EpisodeRowProps> = ({ channel, isActive, onSelect, onToggleFav }) => (
-  <div
-    tabIndex={0}
-    className={`group flex items-center gap-3 px-4 py-3 cursor-pointer transition-all focus:outline-none focus:bg-white/10
-      ${isActive ? 'bg-violet-600/15 border-l-2 border-violet-500' : 'hover:bg-white/5 border-l-2 border-transparent'}`}
-    onClick={onSelect}
-  >
+const EpisodeRow: React.FC<EpisodeRowProps> = ({ channel, isActive, onSelect, onToggleFav }) => {
+  const lp = useLongPress(() => {}, onSelect); // Empty longpress, just handles onClick/onKeyDown
+  return (
+    <div
+      {...lp}
+      role="button"
+      tabIndex={0}
+      className={`group flex items-center gap-3 px-4 py-3 cursor-pointer transition-all focus:outline-none focus:bg-white/10
+        ${isActive ? 'bg-violet-600/15 border-l-2 border-violet-500' : 'hover:bg-white/5 border-l-2 border-transparent'}`}
+    >
     {/* Season/Episode pill */}
     <div className="w-14 shrink-0 text-center">
       {channel.seasonNum != null
@@ -675,7 +688,8 @@ const EpisodeRow: React.FC<EpisodeRowProps> = ({ channel, isActive, onSelect, on
       <Heart className={`w-3.5 h-3.5 ${channel.isFavorite ? 'fill-current' : ''}`} />
     </button>
   </div>
-);
+  );
+};
 
 // ─── Category Row (movies horizontal scroll) ──────────────────────────────────
 
@@ -720,17 +734,17 @@ interface PosterCardProps { channel: Channel; isActive: boolean; onSelect: () =>
 
 const PosterCard: React.FC<PosterCardProps> = ({ channel, isActive, onSelect, onToggleFav }) => {
   const [menuOpen, setMenuOpen] = useState(false);
-  const lp = useLongPress(() => setMenuOpen(true));
+  const lp = useLongPress(() => setMenuOpen(true), onSelect);
 
   return (
     <>
       {menuOpen && <FavContextMenu isFav={!!channel.isFavorite} name={channel.name} onToggle={onToggleFav} onClose={() => setMenuOpen(false)} />}
       <div
         {...lp}
+        role="button"
         tabIndex={0}
         className={`group relative rounded-lg overflow-hidden cursor-pointer transition-all duration-200 shrink-0 w-28 sm:w-32 focus:outline-none focus:scale-[1.04] focus:ring-2 focus:ring-violet-500
           ${isActive ? 'ring-2 ring-violet-500 scale-[1.02]' : 'hover:scale-[1.04] hover:ring-1 hover:ring-white/20'}`}
-        onClick={onSelect}
       >
         <div className="aspect-[2/3] bg-gray-900 relative overflow-hidden">
           {channel.logo ? (
@@ -768,17 +782,17 @@ interface LiveChannelRowProps { channel: Channel; isActive: boolean; onSelect: (
 
 const LiveChannelRow: React.FC<LiveChannelRowProps> = ({ channel, isActive, onSelect, onToggleFav }) => {
   const [menuOpen, setMenuOpen] = useState(false);
-  const lp = useLongPress(() => setMenuOpen(true));
+  const lp = useLongPress(() => setMenuOpen(true), onSelect);
 
   return (
     <>
       {menuOpen && <FavContextMenu isFav={!!channel.isFavorite} name={channel.name} onToggle={onToggleFav} onClose={() => setMenuOpen(false)} />}
       <div
         {...lp}
+        role="button"
         tabIndex={0}
         className={`group flex items-center gap-3 px-4 py-3 cursor-pointer transition-all focus:outline-none focus:bg-white/10
           ${isActive ? 'bg-violet-600/15 border-l-2 border-violet-500' : 'hover:bg-white/5 border-l-2 border-transparent'}`}
-        onClick={onSelect}
       >
         <div className="w-10 h-10 rounded-lg bg-gray-800 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
           {channel.logo
