@@ -123,10 +123,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         {/* Grid: 1 col on mobile (horizontal cards), 3 cols on tablet+ */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-3xl mx-auto">
           {sections.map(({ key, icon: Icon, label, count, gradient, border, glow }) => (
-            <button
+            <div
               key={key}
               id={`section-${key}`}
+              role="button"
+              tabIndex={0}
               onClick={() => onSelectSection(key)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectSection(key); } }}
               className={`
                 group flex sm:flex-col items-center sm:justify-center gap-4 sm:gap-3
                 bg-gradient-to-br ${gradient}
@@ -134,6 +137,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                 px-5 py-4 sm:py-8 sm:px-6 cursor-pointer
                 transition-all duration-200
                 hover:brightness-110 hover:shadow-xl ${glow}
+                focus:outline-none focus:ring-4 focus:ring-white/50 focus:scale-[1.02]
                 active:scale-[0.97]
                 min-h-[72px] sm:min-h-[140px]
               `}
