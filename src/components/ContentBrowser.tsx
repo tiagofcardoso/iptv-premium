@@ -528,29 +528,31 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
 // ─── Small shared cards ───────────────────────────────────────────────────────
 
 const FavCard: React.FC<{ count: number; onClick: () => void }> = ({ count, onClick }) => (
-  <button
+  <div
+    tabIndex={0}
     onClick={onClick}
-    className="group flex items-center gap-3 p-3 rounded-xl bg-gradient-to-br from-yellow-900/50 to-yellow-950 border border-yellow-500/30 hover:border-yellow-400/60 transition-all text-left"
+    className="group flex items-center gap-3 p-3 rounded-xl bg-gradient-to-br from-yellow-900/50 to-yellow-950 border border-yellow-500/30 hover:border-yellow-400/60 transition-all text-left focus:outline-none focus:ring-2 focus:ring-yellow-400/50"
   >
     <Star className="w-5 h-5 text-yellow-400 shrink-0 fill-yellow-400" />
     <div className="min-w-0 flex-1">
       <p className="text-sm text-yellow-200 font-semibold truncate group-hover:text-yellow-100">Favoritos</p>
       <p className="text-xs text-yellow-600">{count}</p>
     </div>
-  </button>
+  </div>
 );
 
 const CategoryFolderCard: React.FC<{ name: string; count: number; onClick: () => void }> = ({ name, count, onClick }) => (
-  <button
+  <div
+    tabIndex={0}
     onClick={onClick}
-    className="group flex items-center gap-3 p-3 rounded-xl bg-gray-900 border border-white/5 hover:border-violet-500/40 hover:bg-gray-800 transition-all text-left"
+    className="group flex items-center gap-3 p-3 rounded-xl bg-gray-900 border border-white/5 hover:border-violet-500/40 hover:bg-gray-800 transition-all text-left focus:outline-none focus:ring-2 focus:ring-violet-500/50"
   >
     <Folder className="w-5 h-5 text-violet-400 shrink-0" />
     <div className="min-w-0 flex-1">
       <p className="text-sm text-white font-medium truncate group-hover:text-violet-300 transition-colors">{name}</p>
       <p className="text-xs text-gray-600">{count}</p>
     </div>
-  </button>
+  </div>
 );
 
 // ─── Show Card (one per series title) ────────────────────────────────────────
@@ -582,8 +584,9 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isFavorit
       {menuOpen && <FavContextMenu isFav={isFavorite} name={name} onToggle={onToggleFav} onClose={() => setMenuOpen(false)} />}
       <div
         {...lp}
+        tabIndex={0}
         className={`group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-200
-          ${isActive ? 'ring-2 ring-violet-500 scale-[1.02]' : 'hover:scale-[1.04] hover:ring-1 hover:ring-white/20'}`}
+          ${isActive ? 'ring-2 ring-violet-500 scale-[1.02]' : 'hover:scale-[1.04] hover:ring-1 hover:ring-white/20 focus:outline-none focus:ring-2 focus:ring-violet-500'}`}
         onClick={onClick}
       >
         <div className="aspect-[2/3] relative overflow-hidden">
@@ -646,7 +649,8 @@ interface EpisodeRowProps { channel: Channel; isActive: boolean; onSelect: () =>
 
 const EpisodeRow: React.FC<EpisodeRowProps> = ({ channel, isActive, onSelect, onToggleFav }) => (
   <div
-    className={`group flex items-center gap-3 px-4 py-3 cursor-pointer transition-all
+    tabIndex={0}
+    className={`group flex items-center gap-3 px-4 py-3 cursor-pointer transition-all focus:outline-none focus:bg-white/10
       ${isActive ? 'bg-violet-600/15 border-l-2 border-violet-500' : 'hover:bg-white/5 border-l-2 border-transparent'}`}
     onClick={onSelect}
   >
@@ -723,7 +727,8 @@ const PosterCard: React.FC<PosterCardProps> = ({ channel, isActive, onSelect, on
       {menuOpen && <FavContextMenu isFav={!!channel.isFavorite} name={channel.name} onToggle={onToggleFav} onClose={() => setMenuOpen(false)} />}
       <div
         {...lp}
-        className={`group relative rounded-lg overflow-hidden cursor-pointer transition-all duration-200 shrink-0 w-28 sm:w-32
+        tabIndex={0}
+        className={`group relative rounded-lg overflow-hidden cursor-pointer transition-all duration-200 shrink-0 w-28 sm:w-32 focus:outline-none focus:scale-[1.04] focus:ring-2 focus:ring-violet-500
           ${isActive ? 'ring-2 ring-violet-500 scale-[1.02]' : 'hover:scale-[1.04] hover:ring-1 hover:ring-white/20'}`}
         onClick={onSelect}
       >
@@ -770,7 +775,8 @@ const LiveChannelRow: React.FC<LiveChannelRowProps> = ({ channel, isActive, onSe
       {menuOpen && <FavContextMenu isFav={!!channel.isFavorite} name={channel.name} onToggle={onToggleFav} onClose={() => setMenuOpen(false)} />}
       <div
         {...lp}
-        className={`group flex items-center gap-3 px-4 py-3 cursor-pointer transition-all
+        tabIndex={0}
+        className={`group flex items-center gap-3 px-4 py-3 cursor-pointer transition-all focus:outline-none focus:bg-white/10
           ${isActive ? 'bg-violet-600/15 border-l-2 border-violet-500' : 'hover:bg-white/5 border-l-2 border-transparent'}`}
         onClick={onSelect}
       >
