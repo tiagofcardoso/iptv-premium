@@ -14,17 +14,20 @@ const TITLE_MAP = { live: 'TV AO VIVO', movies: 'FILMES', series: 'SÉRIES' };
 const FAVS_KEY = '__FAVORITOS__';
 
 // ─── Long-press hook ──────────────────────────────────────────────────────────
-function useLongPress(callback: () => void, onClickAction?: (e: any) => void, ms = 500) {
+function useLongPress(callback: () => void, onClickAction?: (e: any) => void, ms = 600) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const fired = useRef(false);
+  const isLongPressActive = useRef(false);
+  const startTime = useRef<number>(0);
 
   const start = useCallback((e?: React.TouchEvent | React.MouseEvent | React.KeyboardEvent) => {
     if (e && 'key' in e && e.key !== 'Enter' && e.key !== ' ') return;
     if (timerRef.current) return; // Prevent restart on key hold auto-repeat
 
-    fired.current = false;
+    isLongPressActive.current = false;
+    startTime.current = Date.now();
+
     timerRef.current = setTimeout(() => {
-      fired.current = true;
+      isLongPressActive.current = true;
       callback();
     }, ms);
   }, [callback, ms]);
@@ -36,40 +39,47 @@ function useLongPress(callback: () => void, onClickAction?: (e: any) => void, ms
     }
   }, []);
 
-  const handleKeyUp = useCallback((e: React.KeyboardEvent) => {
+  const end = useCallback((e?: React.TouchEvent | React.MouseEvent | React.KeyboardEvent) => {
+    if (e && 'key' in e && e.key !== 'Enter' && e.key !== ' ') return;
+    
     cancel();
-    if (!fired.current && (e.key === 'Enter' || e.key === ' ')) {
-      e.preventDefault();
-      if (onClickAction) onClickAction(e);
-    }
-  }, [cancel, onClickAction]);
 
-  const preventClick = useCallback((e: React.MouseEvent | React.KeyboardEvent) => {
-    if (fired.current) {
-      e.preventDefault();
-      e.stopPropagation();
-    } else {
-      if (onClickAction && e.type === 'click') onClickAction(e);
+    const duration = Date.now() - startTime.current;
+    
+    // If it was a short click and not triggered by a long press context menu:
+    if (!isLongPressActive.current && startTime.current > 0 && duration < ms) {
+      startTime.current = 0; // Reset
+      if (onClickAction) {
+        onClickAction(e);
+      }
     }
-  }, [onClickAction]);
+  }, [cancel, onClickAction, ms]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    fired.current = true;
+    e.stopPropagation();
+    isLongPressActive.current = true;
+    cancel();
     callback();
-  }, [callback]);
+  }, [callback, cancel]);
+
+  const handlePreventClick = useCallback((e: React.MouseEvent) => {
+    // Intercept standard click events to prevent immediate double activation on TV remotes
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
 
   return { 
     onMouseDown: start, 
-    onMouseUp: cancel, 
+    onMouseUp: end, 
     onMouseLeave: cancel, 
     onTouchStart: start, 
-    onTouchEnd: cancel, 
+    onTouchEnd: end, 
     onTouchMove: cancel,
     onKeyDown: start,
-    onKeyUp: handleKeyUp,
-    onClick: preventClick,
-    onContextMenu: handleContextMenu
+    onKeyUp: end,
+    onContextMenu: handleContextMenu,
+    onClick: handlePreventClick
   };
 }
 
