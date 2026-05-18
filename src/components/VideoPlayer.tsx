@@ -16,6 +16,7 @@ interface VideoPlayerProps {
   currentId?: string;
   onNavigate?: (id: string) => void;
   isLive?: boolean;
+  onControlsVisibleChange?: (visible: boolean) => void;
 }
 
 export interface VideoPlayerHandle {
@@ -40,7 +41,7 @@ function detectStreamType(url: string): 'hls' | 'direct' {
 const LOAD_TIMEOUT_MS = 15000; // reduced from 20s for faster feedback
 
 const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
-  ({ url, playlist = [], currentId, onNavigate, isLive = false }, ref) => {
+  ({ url, playlist = [], currentId, onNavigate, isLive = false, onControlsVisibleChange }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -78,6 +79,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
     hideControlsTimer.current = setTimeout(() => setControlsVisible(false), 3500);
   }, [isTouchDevice]);
+
+  useEffect(() => {
+    if (onControlsVisibleChange) {
+      onControlsVisibleChange(controlsVisible);
+    }
+  }, [controlsVisible, onControlsVisibleChange]);
 
   const goFullscreen = useCallback(() => {
     const el = containerRef.current;
@@ -264,22 +271,38 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
 
     // ── Native HLS (Safari / iOS) ────────────────────────────────────────────
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = proxied;
-      startLoadTimeout();
-      video.addEventListener('loadedmetadata', () => { onReady(); }, { once: true });
+      const handleLoadedMetadata = () => { onReady(); };
+      
       video.addEventListener('error', () =>
         showError('Stream indisponível. A fonte pode estar offline ou bloqueada.')
       , { once: true });
+      
+      if (video.readyState >= 1) {
+        handleLoadedMetadata();
+      } else {
+        video.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
+      }
+      
+      video.src = proxied;
+      startLoadTimeout();
 
     // ── Direct <video> fallback ──────────────────────────────────────────────
     } else {
-      video.src = proxied;
-      video.load();
-      startLoadTimeout();
-      video.addEventListener('canplay', () => { onReady(); }, { once: true });
+      const handleCanPlay = () => { onReady(); };
+      
       video.addEventListener('error', () =>
         showError('Stream indisponível. Formato não suportado ou canal offline.')
       , { once: true });
+      
+      if (video.readyState >= 3) {
+        handleCanPlay();
+      } else {
+        video.addEventListener('canplay', handleCanPlay, { once: true });
+      }
+      
+      video.src = proxied;
+      video.load();
+      startLoadTimeout();
     }
   };
 

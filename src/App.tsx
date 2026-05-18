@@ -35,6 +35,7 @@ function App() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [playerControlsVisible, setPlayerControlsVisible] = useState(true);
   const playerRef = useRef<VideoPlayerHandle>(null);
 
   const {
@@ -394,10 +395,10 @@ function App() {
         {screen === 'player' && currentChannel && (
           <div className="fixed inset-0 z-30 bg-black flex flex-col">
             {/* Player header */}
-            <div className="flex items-center gap-3 px-4 py-3 bg-gray-950/90 backdrop-blur shrink-0">
+            <div className={`absolute top-0 left-0 right-0 z-40 bg-gradient-to-b from-black/95 via-black/60 to-transparent px-4 py-4 flex items-center gap-3 transition-opacity duration-300 ${playerControlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
               <button
                 onClick={navigateBack}
-                className="p-2 rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 transition-colors"
+                className="p-2 rounded-xl bg-gray-800/80 hover:bg-gray-700 active:bg-gray-600 transition-colors backdrop-blur-sm"
                 aria-label="Voltar"
               >
                 {/* Chevron left */}
@@ -411,37 +412,36 @@ function App() {
                   <img
                     src={currentChannel.logo}
                     alt=""
-                    className="w-8 h-8 rounded-lg object-contain bg-gray-800 shrink-0"
+                    className="w-9 h-9 rounded-lg object-contain bg-gray-900/80 p-0.5 border border-white/10 shrink-0"
                     onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   />
                 )}
                 <div className="min-w-0">
-                  <p className="text-white font-semibold text-sm truncate">{currentChannel.name}</p>
-                  <p className="text-gray-500 text-xs truncate">{currentChannel.group}</p>
+                  <p className="text-white font-semibold text-sm truncate drop-shadow">{currentChannel.name}</p>
+                  <p className="text-gray-400 text-xs truncate drop-shadow">{currentChannel.group}</p>
                 </div>
               </div>
 
               <button
                 onClick={() => setShowSidebar(true)}
-                className="p-2 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors shrink-0"
+                className="p-2 rounded-xl bg-gray-800/80 hover:bg-gray-700 transition-colors shrink-0 backdrop-blur-sm"
                 aria-label="Menu"
               >
                 <Settings className="w-4 h-4 text-gray-400" />
               </button>
             </div>
 
-          {/* Player — full screen on mobile, centered on desktop */}
-            <div className="flex-1 flex items-center justify-center bg-black">
-              <div className="w-full h-full sm:max-w-6xl sm:p-4 flex items-center">
-                <VideoPlayer
-                  ref={playerRef}
-                  url={currentChannel.url}
-                  playlist={sectionChannels}
-                  currentId={currentChannel.id}
-                  onNavigate={handleNavigateChannel}
-                  isLive={currentIsLive}
-                />
-              </div>
+            {/* Player — immersive full screen layout */}
+            <div className="flex-1 w-full h-full bg-black relative">
+              <VideoPlayer
+                ref={playerRef}
+                url={currentChannel.url}
+                playlist={sectionChannels}
+                currentId={currentChannel.id}
+                onNavigate={handleNavigateChannel}
+                isLive={currentIsLive}
+                onControlsVisibleChange={setPlayerControlsVisible}
+              />
             </div>
           </div>
         )}
