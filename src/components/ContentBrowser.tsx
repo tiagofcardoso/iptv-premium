@@ -53,6 +53,12 @@ function useLongPress(callback: () => void, onClickAction?: (e: any) => void, ms
     }
   }, [onClickAction]);
 
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    fired.current = true;
+    callback();
+  }, [callback]);
+
   return { 
     onMouseDown: start, 
     onMouseUp: cancel, 
@@ -62,7 +68,8 @@ function useLongPress(callback: () => void, onClickAction?: (e: any) => void, ms
     onTouchMove: cancel,
     onKeyDown: start,
     onKeyUp: handleKeyUp,
-    onClick: preventClick 
+    onClick: preventClick,
+    onContextMenu: handleContextMenu
   };
 }
 
@@ -73,23 +80,33 @@ const FavContextMenu: React.FC<{
   onToggle: () => void;
   onClose: () => void;
 }> = ({ isFav, name, onToggle, onClose }) => {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
     const handler = () => onClose();
     window.addEventListener('scroll', handler, { passive: true });
     return () => window.removeEventListener('scroll', handler);
   }, [onClose]);
 
+  // Auto-focus the action button when context menu mounts so it highlights instantly
+  useEffect(() => {
+    setTimeout(() => {
+      buttonRef.current?.focus();
+    }, 150);
+  }, []);
+
   return (
     <>
       {/* backdrop */}
-      <div className="fixed inset-0 z-50" onClick={onClose} />
+      <div className="fixed inset-0 z-50 bg-black/40" onClick={onClose} />
       {/* menu */}
-      <div className="fixed left-1/2 bottom-8 -translate-x-1/2 z-50 w-72 bg-gray-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-150">
+      <div id="fav-context-menu" className="fixed left-1/2 bottom-8 -translate-x-1/2 z-50 w-72 bg-gray-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-150">
         <div className="px-4 py-3 border-b border-white/5">
           <p className="text-white text-sm font-semibold truncate">{name}</p>
         </div>
         <button
-          className="w-full flex items-center gap-3 px-4 py-4 hover:bg-white/5 transition-colors text-left"
+          ref={buttonRef}
+          className="focusable-tv w-full flex items-center gap-3 px-4 py-4 hover:bg-white/5 transition-colors text-left focus:outline-none focus:bg-white/10"
           onClick={() => { onToggle(); onClose(); }}
         >
           <span className="text-lg">{isFav ? '💔' : '❤️'}</span>

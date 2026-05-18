@@ -148,18 +148,22 @@ function App() {
         return;
       }
 
-      // Check if Sidebar is open by finding an active <aside> element
+      // Check if Sidebar or Favorite Context Menu is open
       const sidebar = document.querySelector('aside');
+      const contextMenu = document.getElementById('fav-context-menu');
 
       // Find all focusable elements with .focusable-tv class
       let candidates = Array.from(document.querySelectorAll('.focusable-tv')) as HTMLElement[];
 
-      if (sidebar) {
+      if (contextMenu) {
+        // If Context Menu is open, restrict focus navigation strictly inside the context menu
+        candidates = candidates.filter(el => contextMenu.contains(el));
+      } else if (sidebar) {
         // If Sidebar is open, restrict navigation strictly inside the sidebar
         candidates = candidates.filter(el => sidebar.contains(el));
       } else {
-        // If Sidebar is closed, completely ignore any elements inside <aside>
-        candidates = candidates.filter(el => !el.closest('aside'));
+        // If both are closed, completely ignore any elements inside <aside> or the context menu
+        candidates = candidates.filter(el => !el.closest('aside') && !el.closest('#fav-context-menu'));
       }
 
       if (candidates.length === 0) return;
