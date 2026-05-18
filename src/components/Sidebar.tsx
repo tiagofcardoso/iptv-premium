@@ -113,7 +113,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
             </div>
             <span className="text-white font-bold text-sm tracking-wide">IPTV Premium</span>
           </div>
-          <button onClick={onToggle} className="p-1 rounded-lg hover:bg-white/10 transition-colors">
+          <button onClick={onToggle} className="focusable-tv p-1 rounded-lg hover:bg-white/10 transition-colors">
             <ChevronLeft className="w-4 h-4 text-gray-400" />
           </button>
         </div>
@@ -127,23 +127,28 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
               onChange={e => setUrlInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleLoadPlaylist()}
               placeholder="URL da playlist M3U…"
-              className="flex-1 min-w-0 bg-gray-800 border border-white/10 text-white text-xs rounded-lg px-3 py-2 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-all"
+              className="focusable-tv flex-1 min-w-0 bg-gray-800 border border-white/10 text-white text-xs rounded-lg px-3 py-2 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-all"
             />
             <button
               onClick={handleLoadPlaylist}
               disabled={loading}
-              className="px-3 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-lg transition-all active:scale-95"
+              className="focusable-tv px-3 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-lg transition-all active:scale-95"
               title="Carregar URL"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link className="w-4 h-4" />}
             </button>
           </div>
 
-          <label className="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border border-dashed border-white/10 hover:border-violet-500/50 hover:bg-violet-500/5 transition-all group">
+          <div
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.querySelector('input')?.click(); } }}
+            className="focusable-tv flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border border-dashed border-white/10 hover:border-violet-500/50 hover:bg-violet-500/5 transition-all group"
+          >
             <UploadCloud className="w-4 h-4 text-gray-500 group-hover:text-violet-400 transition-colors" />
             <span className="text-xs text-gray-500 group-hover:text-violet-300 transition-colors">Upload ficheiro .m3u</span>
             <input type="file" accept=".m3u,.m3u8" className="hidden" onChange={handleFileUpload} />
-          </label>
+          </div>
 
           {error && <p className="text-red-400 text-xs px-1">{error}</p>}
 
@@ -152,7 +157,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
               <span className="text-xs text-gray-500">{channels.length.toLocaleString()} canais carregados</span>
               <button
                 onClick={clearPlaylist}
-                className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-400 transition-colors"
+                className="focusable-tv flex items-center gap-1 text-xs text-gray-500 hover:text-red-400 transition-colors"
               >
                 <Trash2 className="w-3 h-3" />Limpar
               </button>
@@ -170,7 +175,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Pesquisar canais…"
-                className="w-full bg-gray-800 border border-white/10 text-white text-xs rounded-lg pl-8 pr-3 py-2 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-all"
+                className="focusable-tv w-full bg-gray-800 border border-white/10 text-white text-xs rounded-lg pl-8 pr-3 py-2 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-all"
               />
             </div>
           </div>
@@ -186,7 +191,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
               <button
                 key={key}
                 onClick={() => { setView(key); setActiveCategory(null); }}
-                className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-1.5 rounded-lg font-medium transition-all ${
+                className={`focusable-tv flex-1 flex items-center justify-center gap-1.5 text-xs py-1.5 rounded-lg font-medium transition-all ${
                   view === key
                     ? 'bg-violet-600/20 text-violet-400 border border-violet-500/30'
                     : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
@@ -249,7 +254,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
                   <button
                     key={cat.name}
                     onClick={() => { setActiveCategory(cat.name); setView('channels'); }}
-                    className={`w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-white/5 transition-colors group ${
+                    className={`focusable-tv w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-white/5 transition-colors group ${
                       activeCategory === cat.name ? 'text-violet-400' : 'text-gray-300'
                     }`}
                   >
@@ -274,7 +279,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
               {view === 'channels' && activeCategory && !searchQuery && (
                 <button
                   onClick={() => { setView('categories'); setActiveCategory(null); }}
-                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 px-4 py-2 transition-colors"
+                  className="focusable-tv flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 px-4 py-2 transition-colors"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                   {activeCategory}
@@ -362,7 +367,7 @@ const SeriesGroupedList: React.FC<SeriesGroupedListProps> = ({ groups, currentCh
           <div key={seriesName}>
             <button
               onClick={() => toggle(seriesName)}
-              className={`w-full flex items-center gap-3 px-3 py-2 mx-1 rounded-lg hover:bg-white/5 transition-colors ${hasActive ? 'text-violet-400' : 'text-gray-300'}`}
+              className={`focusable-tv w-full flex items-center gap-3 px-3 py-2 mx-1 rounded-lg hover:bg-white/5 transition-colors ${hasActive ? 'text-violet-400' : 'text-gray-300'}`}
             >
               {/* Logo */}
               <div className="w-9 h-9 rounded-lg bg-gray-800 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
@@ -412,12 +417,15 @@ interface ChannelItemProps {
 
 const ChannelItem: React.FC<ChannelItemProps> = ({ channel, isActive, onSelect, onToggleFav }) => (
   <div
-    className={`group flex items-center gap-3 px-3 py-2 mx-1 rounded-lg cursor-pointer transition-all ${
+    role="button"
+    tabIndex={0}
+    className={`focusable-tv group flex items-center gap-3 px-3 py-2 mx-1 rounded-lg cursor-pointer transition-all ${
       isActive
         ? 'bg-violet-600/20 border border-violet-500/30'
         : 'hover:bg-white/5 border border-transparent'
     }`}
     onClick={onSelect}
+    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); } }}
   >
     <div className="w-9 h-9 rounded-lg bg-gray-800 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
       {channel.logo ? (
@@ -444,7 +452,7 @@ const ChannelItem: React.FC<ChannelItemProps> = ({ channel, isActive, onSelect, 
 
     <button
       onClick={e => { e.stopPropagation(); onToggleFav(); }}
-      className={`p-1 rounded transition-all opacity-0 group-hover:opacity-100 ${
+      className={`focusable-tv p-1 rounded transition-all opacity-0 group-hover:opacity-100 ${
         channel.isFavorite ? '!opacity-100 text-pink-400' : 'text-gray-600 hover:text-pink-400'
       }`}
     >

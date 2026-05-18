@@ -148,11 +148,23 @@ function App() {
         return;
       }
 
+      // Check if Sidebar is open by finding an active <aside> element
+      const sidebar = document.querySelector('aside');
+
       // Find all focusable elements with .focusable-tv class
-      const candidates = Array.from(document.querySelectorAll('.focusable-tv')) as HTMLElement[];
+      let candidates = Array.from(document.querySelectorAll('.focusable-tv')) as HTMLElement[];
+
+      if (sidebar) {
+        // If Sidebar is open, restrict navigation strictly inside the sidebar
+        candidates = candidates.filter(el => sidebar.contains(el));
+      } else {
+        // If Sidebar is closed, completely ignore any elements inside <aside>
+        candidates = candidates.filter(el => !el.closest('aside'));
+      }
+
       if (candidates.length === 0) return;
 
-      // If nothing is focused, or the active element isn't in candidates, focus the first one
+      // If nothing is focused, or the active element isn't in our candidates, focus the first one
       if (!active || !candidates.includes(active)) {
         candidates[0].focus();
         e.preventDefault();
@@ -218,6 +230,22 @@ function App() {
     window.addEventListener('keydown', handleTVNavigation);
     return () => window.removeEventListener('keydown', handleTVNavigation);
   }, []);
+
+  // ── Auto-focus Sidebar when it opens ─────────────────────────────────────────
+  useEffect(() => {
+    if (showSidebar) {
+      setTimeout(() => {
+        // Try to focus the first input inside the Sidebar first (URL input), otherwise the first focusable element
+        const sidebarInput = document.querySelector('aside input.focusable-tv') as HTMLElement | null;
+        if (sidebarInput) {
+          sidebarInput.focus();
+        } else {
+          const firstInSidebar = document.querySelector('aside .focusable-tv') as HTMLElement | null;
+          if (firstInSidebar) firstInSidebar.focus();
+        }
+      }, 150);
+    }
+  }, [showSidebar]);
 
   // ── Wake up proxy & auto-reload ───────────────────────────────────────────────
   useEffect(() => {
