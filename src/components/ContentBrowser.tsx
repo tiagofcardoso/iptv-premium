@@ -538,31 +538,35 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
 // ─── Small shared cards ───────────────────────────────────────────────────────
 
 const FavCard: React.FC<{ count: number; onClick: () => void }> = ({ count, onClick }) => (
-  <button
-    type="button"
+  <div
+    role="button"
+    tabIndex={0}
     onClick={onClick}
-    className="w-full group flex items-center gap-3 p-3 rounded-xl bg-gradient-to-br from-yellow-900/50 to-yellow-950 border border-yellow-500/30 hover:border-yellow-400/60 transition-all text-left focus:outline-none focus:ring-2 focus:ring-yellow-400/50"
+    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+    className="w-full group flex items-center gap-3 p-3 rounded-xl bg-gradient-to-br from-yellow-900/50 to-yellow-950 border border-yellow-500/30 hover:border-yellow-400/60 transition-all text-left focus:outline-none focus:ring-2 focus:ring-yellow-400/50 cursor-pointer"
   >
     <Star className="w-5 h-5 text-yellow-400 shrink-0 fill-yellow-400" />
     <div className="min-w-0 flex-1">
       <p className="text-sm text-yellow-200 font-semibold truncate group-hover:text-yellow-100">Favoritos</p>
       <p className="text-xs text-yellow-600">{count}</p>
     </div>
-  </button>
+  </div>
 );
 
 const CategoryFolderCard: React.FC<{ name: string; count: number; onClick: () => void }> = ({ name, count, onClick }) => (
-  <button
-    type="button"
+  <div
+    role="button"
+    tabIndex={0}
     onClick={onClick}
-    className="w-full group flex items-center gap-3 p-3 rounded-xl bg-gray-900 border border-white/5 hover:border-violet-500/40 hover:bg-gray-800 transition-all text-left focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+    className="w-full group flex items-center gap-3 p-3 rounded-xl bg-gray-900 border border-white/5 hover:border-violet-500/40 hover:bg-gray-800 transition-all text-left focus:outline-none focus:ring-2 focus:ring-violet-500/50 cursor-pointer"
   >
     <Folder className="w-5 h-5 text-violet-400 shrink-0" />
     <div className="min-w-0 flex-1">
       <p className="text-sm text-white font-medium truncate group-hover:text-violet-300 transition-colors">{name}</p>
       <p className="text-xs text-gray-600">{count}</p>
     </div>
-  </button>
+  </div>
 );
 
 // ─── Show Card (one per series title) ────────────────────────────────────────
