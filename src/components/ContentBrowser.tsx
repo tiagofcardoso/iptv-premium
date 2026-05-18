@@ -1,5 +1,5 @@
 import React, { useRef, useState, useMemo, useCallback, useEffect } from 'react';
-import { ChevronRight, Play, Heart, ArrowLeft, Tv, Folder, Star } from 'lucide-react';
+import { ChevronRight, Play, Heart, ArrowLeft, Tv, Folder, Star, Search } from 'lucide-react';
 import type { Channel, Category } from '../types/index.ts';
 import { useIPTVStore } from '../store/useIPTVStore.ts';
 
@@ -114,7 +114,16 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
 }) => {
   const { currentChannel, toggleFavorite } = useIPTVStore();
   const [search, setSearch] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isSearchOpen && searchRef.current) {
+      // Remove readonly and focus when the search bar opens
+      searchRef.current.removeAttribute('readonly');
+      searchRef.current.focus();
+    }
+  }, [isSearchOpen]);
 
   // Navigation levels
   const [activeCategory, setActiveCategory] = useState<string | null>(null); // platform/group
@@ -210,17 +219,17 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
 
   // ── Back button logic ──────────────────────────────────────────────────────
   const handleBack = useCallback(() => {
-    if (search) { setSearch(''); return; }   // back clears search first
+    if (search || isSearchOpen) { setSearch(''); setIsSearchOpen(false); return; }   // back clears search first
     if (activeShow) { setActiveShow(null); return; }
     if (activeCategory) { setActiveCategory(null); return; }
     onBack();
-  }, [search, activeShow, activeCategory, onBack]);
+  }, [search, isSearchOpen, activeShow, activeCategory, onBack]);
 
   // Handle hardware/remote back button
   useEffect(() => {
     const onHardwareBack = (e: Event) => {
       // If we have local state to clear, prevent app exit/history back and clear it
-      if (search || activeShow || activeCategory) {
+      if (search || isSearchOpen || activeShow || activeCategory) {
         e.preventDefault();
         handleBack();
       }
@@ -231,7 +240,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
         // If we are typing in search, let Backspace work normally
         if (e.key === 'Backspace' && document.activeElement?.tagName === 'INPUT') return;
         
-        if (search || activeShow || activeCategory) {
+        if (search || isSearchOpen || activeShow || activeCategory) {
           e.preventDefault();
           e.stopPropagation();
           handleBack();
@@ -245,7 +254,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
       window.removeEventListener('app:hardwareBack', onHardwareBack);
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [search, activeShow, activeCategory, handleBack]);
+  }, [search, isSearchOpen, activeShow, activeCategory, handleBack]);
 
   // ── Breadcrumb title ───────────────────────────────────────────────────────
   const headerTitle = activeShow ?? (activeCategory === FAVS_KEY ? '⭐ Favoritos' : activeCategory) ?? TITLE_MAP[section];
@@ -273,48 +282,59 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
           <h1 className="text-white font-bold text-sm tracking-widest truncate">{headerTitle}</h1>
           {headerSub && <p className="text-xs text-gray-500">{headerSub}</p>}
         </div>
+        
+        {/* Search Toggle Button */}
+        {!isSearchOpen && (
+          <button
+            onClick={() => setIsSearchOpen(true)}
+            className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 active:bg-white/10 transition-colors"
+            aria-label="Pesquisar"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
-      {/* ── Always-visible search bar ── */}
-      <div className="px-4 pb-2 shrink-0">
-        <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 111 11a6 6 0 0116 0z" />
-          </svg>
-          <input
-            ref={searchRef}
-            type="search"
-            value={search}
-            readOnly={!search} // Only readonly when empty to allow backspace on TV
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+      {/* ── Expandable Search Bar ── */}
+      {isSearchOpen && (
+        <div className="px-4 pb-2 pt-2 shrink-0 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+            <input
+              ref={searchRef}
+              type="search"
+              value={search}
+              readOnly={!search} // Only readonly when empty to allow backspace on TV
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.removeAttribute('readonly');
+                  e.currentTarget.focus();
+                }
+              }}
+              onClick={(e) => {
                 e.currentTarget.removeAttribute('readonly');
                 e.currentTarget.focus();
-              }
-            }}
-            onClick={(e) => {
-              e.currentTarget.removeAttribute('readonly');
-              e.currentTarget.focus();
-            }}
-            onBlur={(e) => {
-              if (!search) e.currentTarget.setAttribute('readonly', 'true');
-            }}
-            onChange={e => setSearch(e.target.value)}
-            placeholder={`Pesquisar em ${TITLE_MAP[section]}…`}
-            className="w-full bg-gray-900 border border-white/10 text-white text-sm rounded-xl pl-9 pr-4 py-2.5 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500 transition-colors"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
+              }}
+              onBlur={(e) => {
+                if (!search) e.currentTarget.setAttribute('readonly', 'true');
+              }}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={`Pesquisar em ${TITLE_MAP[section]}…`}
+              className="w-full bg-gray-900 border border-white/10 text-white text-sm rounded-xl pl-9 pr-4 py-2.5 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500 transition-colors"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Content ── */}
       <div className="flex-1 overflow-y-auto">
