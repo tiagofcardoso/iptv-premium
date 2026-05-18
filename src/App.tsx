@@ -7,6 +7,7 @@ import Sidebar from './components/Sidebar.tsx';
 import { useIPTVStore, getPersistedFavoriteIds } from './store/useIPTVStore.ts';
 import { fetchM3U } from './utils/m3uParser.ts';
 import { PROXY_BASE } from './utils/proxy.ts';
+import { App as CapacitorApp } from '@capacitor/app';
 
 // ── Navigation state stored in browser history ────────────────────────────────
 // Each "page" in the stack is one of these states pushed via history.pushState
@@ -71,6 +72,44 @@ function App() {
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, [setCurrentChannel]);
+
+  // ── Capacitor Hardware Back Button ───────────────────────────────────────────
+  useEffect(() => {
+    let listener: any;
+    CapacitorApp.addListener('backButton', () => {
+      // 1. Dispatch custom event for components to intercept (like ContentBrowser closing a category)
+      const event = new CustomEvent('app:hardwareBack', { cancelable: true });
+      const handled = !window.dispatchEvent(event);
+      
+      // 2. If a component called e.preventDefault(), stop here
+      if (handled) return;
+
+      // 3. Otherwise, if sidebar is open, close it
+      if (showSidebar) {
+        setShowSidebar(false);
+        return;
+      }
+
+      // 4. If playing video, go back to previous screen
+      if (screen === 'player') {
+        window.history.back();
+        return;
+      }
+
+      // 5. If we are not on home, go back
+      if (screen !== 'home') {
+        window.history.back();
+        return;
+      }
+
+      // 6. If we are on home and nothing else is open, exit app
+      CapacitorApp.exitApp();
+    }).then(l => { listener = l; });
+
+    return () => {
+      if (listener) listener.remove();
+    };
+  }, [screen, showSidebar]);
 
   // ── Navigation helpers ────────────────────────────────────────────────────────
   const navigateTo = useCallback((next: NavScreen) => {

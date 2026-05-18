@@ -18,8 +18,10 @@ function useLongPress(callback: () => void, ms = 500) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fired = useRef(false);
 
-  const start = useCallback((_e: React.TouchEvent | React.MouseEvent) => {
-    // Don't interfere with scroll
+  const start = useCallback((e?: React.TouchEvent | React.MouseEvent | React.KeyboardEvent) => {
+    if (e && 'key' in e && e.key !== 'Enter' && e.key !== ' ') return;
+    if (timerRef.current) return; // Prevent restart on key hold auto-repeat
+
     fired.current = false;
     timerRef.current = setTimeout(() => {
       fired.current = true;
@@ -28,14 +30,30 @@ function useLongPress(callback: () => void, ms = 500) {
   }, [callback, ms]);
 
   const cancel = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
   }, []);
 
-  const preventClick = useCallback((e: React.MouseEvent) => {
-    if (fired.current) e.stopPropagation();
+  const preventClick = useCallback((e: React.MouseEvent | React.KeyboardEvent) => {
+    if (fired.current) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
   }, []);
 
-  return { onMouseDown: start, onMouseUp: cancel, onMouseLeave: cancel, onTouchStart: start, onTouchEnd: cancel, onTouchMove: cancel, onClick: preventClick };
+  return { 
+    onMouseDown: start, 
+    onMouseUp: cancel, 
+    onMouseLeave: cancel, 
+    onTouchStart: start, 
+    onTouchEnd: cancel, 
+    onTouchMove: cancel,
+    onKeyDown: start,
+    onKeyUp: cancel,
+    onClick: preventClick 
+  };
 }
 
 // ─── Fav Context Menu ─────────────────────────────────────────────────────────
@@ -191,12 +209,43 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
   }, [search, searchResults, isSeries]);
 
   // ── Back button logic ──────────────────────────────────────────────────────
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     if (search) { setSearch(''); return; }   // back clears search first
     if (activeShow) { setActiveShow(null); return; }
     if (activeCategory) { setActiveCategory(null); return; }
     onBack();
-  };
+  }, [search, activeShow, activeCategory, onBack]);
+
+  // Handle hardware/remote back button
+  useEffect(() => {
+    const onHardwareBack = (e: Event) => {
+      // If we have local state to clear, prevent app exit/history back and clear it
+      if (search || activeShow || activeCategory) {
+        e.preventDefault();
+        handleBack();
+      }
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Backspace' || e.key === 'BrowserBack') {
+        // If we are typing in search, let Backspace work normally
+        if (e.key === 'Backspace' && document.activeElement?.tagName === 'INPUT') return;
+        
+        if (search || activeShow || activeCategory) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleBack();
+        }
+      }
+    };
+
+    window.addEventListener('app:hardwareBack', onHardwareBack);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('app:hardwareBack', onHardwareBack);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [search, activeShow, activeCategory, handleBack]);
 
   // ── Breadcrumb title ───────────────────────────────────────────────────────
   const headerTitle = activeShow ?? (activeCategory === FAVS_KEY ? '⭐ Favoritos' : activeCategory) ?? TITLE_MAP[section];
@@ -236,6 +285,20 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
             ref={searchRef}
             type="search"
             value={search}
+            readOnly={!search} // Only readonly when empty to allow backspace on TV
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.currentTarget.removeAttribute('readonly');
+                e.currentTarget.focus();
+              }
+            }}
+            onClick={(e) => {
+              e.currentTarget.removeAttribute('readonly');
+              e.currentTarget.focus();
+            }}
+            onBlur={(e) => {
+              if (!search) e.currentTarget.setAttribute('readonly', 'true');
+            }}
             onChange={e => setSearch(e.target.value)}
             placeholder={`Pesquisar em ${TITLE_MAP[section]}…`}
             className="w-full bg-gray-900 border border-white/10 text-white text-sm rounded-xl pl-9 pr-4 py-2.5 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500 transition-colors"
