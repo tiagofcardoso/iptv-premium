@@ -75,6 +75,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
         {/* Right actions */}
         <div className="flex items-center gap-2">
+          {/* TV App Download */}
+          <a
+            href="https://drive.google.com/uc?export=download&id=1uaEDiEtXDLAuOZ8herlYwzicCY2A13OM"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 px-2.5 py-1.5 bg-violet-600/20 hover:bg-violet-600/40 text-violet-300 border border-violet-500/30 rounded-lg text-xs font-semibold transition-colors"
+          >
+            <Download className="w-3 h-3" />
+            <span className="hidden xs:inline">App TV</span>
+          </a>
+
           {/* Web App Install */}
           {installPrompt && (
             <button
