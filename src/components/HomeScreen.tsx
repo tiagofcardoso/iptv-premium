@@ -157,7 +157,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
               {/* Arrow (mobile only) */}
               <div className="ml-auto sm:hidden text-white/30">›</div>
-            </button>
+            </div>
           ))}
         </div>
 
