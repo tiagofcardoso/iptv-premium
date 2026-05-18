@@ -135,6 +135,90 @@ function App() {
     if (outcome === 'accepted') setInstallPrompt(null);
   };
 
+  // ── TV Spatial Navigation (D-Pad support) ────────────────────────────────────
+  useEffect(() => {
+    const handleTVNavigation = (e: KeyboardEvent) => {
+      const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+      if (!keys.includes(e.key)) return;
+
+      const active = document.activeElement as HTMLElement | null;
+
+      // Skip left/right navigation if user is actively typing in the search input
+      if (active?.tagName === 'INPUT' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        return;
+      }
+
+      // Find all focusable elements with .focusable-tv class
+      const candidates = Array.from(document.querySelectorAll('.focusable-tv')) as HTMLElement[];
+      if (candidates.length === 0) return;
+
+      // If nothing is focused, or the active element isn't in candidates, focus the first one
+      if (!active || !candidates.includes(active)) {
+        candidates[0].focus();
+        e.preventDefault();
+        return;
+      }
+
+      const activeRect = active.getBoundingClientRect();
+      const activeCenter = {
+        x: activeRect.left + activeRect.width / 2,
+        y: activeRect.top + activeRect.height / 2
+      };
+
+      let bestCandidate: HTMLElement | null = null;
+      let minDistance = Infinity;
+
+      for (const candidate of candidates) {
+        if (candidate === active) continue;
+
+        const rect = candidate.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) continue; // Skip hidden/invisible elements
+
+        const center = {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2
+        };
+
+        const dx = center.x - activeCenter.x;
+        const dy = center.y - activeCenter.y;
+
+        let isCorrectDirection = false;
+        let distance = 0;
+
+        // Threshold of 5px to account for slight misalignment or line offsets
+        if (e.key === 'ArrowDown') {
+          isCorrectDirection = rect.top >= activeRect.top + 5;
+          // Heavily penalize horizontal drift to prefer exact columns below
+          distance = dy * dy + 4 * dx * dx;
+        } else if (e.key === 'ArrowUp') {
+          isCorrectDirection = rect.bottom <= activeRect.bottom - 5;
+          distance = dy * dy + 4 * dx * dx;
+        } else if (e.key === 'ArrowLeft') {
+          isCorrectDirection = rect.right <= activeRect.right - 5;
+          // Heavily penalize vertical drift to prefer exact rows to the left
+          distance = 4 * dy * dy + dx * dx;
+        } else if (e.key === 'ArrowRight') {
+          isCorrectDirection = rect.left >= activeRect.left + 5;
+          distance = 4 * dy * dy + dx * dx;
+        }
+
+        if (isCorrectDirection && distance < minDistance) {
+          minDistance = distance;
+          bestCandidate = candidate;
+        }
+      }
+
+      if (bestCandidate) {
+        bestCandidate.focus();
+        bestCandidate.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', handleTVNavigation);
+    return () => window.removeEventListener('keydown', handleTVNavigation);
+  }, []);
+
   // ── Wake up proxy & auto-reload ───────────────────────────────────────────────
   useEffect(() => {
     const pingProxy = async () => {

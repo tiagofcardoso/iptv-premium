@@ -283,7 +283,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
       <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5 shrink-0">
         <button
           onClick={handleBack}
-          className="p-2 rounded-xl bg-gray-800/80 hover:bg-gray-700 active:bg-gray-600 transition-colors"
+          className="focusable-tv p-2 rounded-xl bg-gray-800/80 hover:bg-gray-700 active:bg-gray-600 transition-colors"
           aria-label="Voltar"
         >
           <ArrowLeft className="w-4 h-4 text-white" />
@@ -297,7 +297,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
         {!isSearchOpen && (
           <button
             onClick={() => setIsSearchOpen(true)}
-            className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 active:bg-white/10 transition-colors"
+            className="focusable-tv p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 active:bg-white/10 transition-colors"
             aria-label="Pesquisar"
           >
             <Search className="w-5 h-5" />
@@ -330,7 +330,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
               }}
               onChange={e => setSearch(e.target.value)}
               placeholder={`Pesquisar em ${TITLE_MAP[section]}…`}
-              className="w-full bg-gray-900 border border-white/10 text-white text-sm rounded-xl pl-9 pr-4 py-2.5 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500 transition-colors"
+              className="focusable-tv w-full bg-gray-900 border border-white/10 text-white text-sm rounded-xl pl-9 pr-4 py-2.5 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500 transition-colors"
             />
             {search && (
               <button
@@ -543,7 +543,7 @@ const FavCard: React.FC<{ count: number; onClick: () => void }> = ({ count, onCl
     tabIndex={0}
     onClick={onClick}
     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
-    className="w-full group flex items-center gap-3 p-3 rounded-xl bg-gradient-to-br from-yellow-900/50 to-yellow-950 border border-yellow-500/30 hover:border-yellow-400/60 transition-all text-left focus:outline-none focus:ring-2 focus:ring-yellow-400/50 cursor-pointer"
+    className="focusable-tv w-full group flex items-center gap-3 p-3 rounded-xl bg-gradient-to-br from-yellow-900/50 to-yellow-950 border border-yellow-500/30 hover:border-yellow-400/60 transition-all text-left focus:outline-none focus:ring-2 focus:ring-yellow-400/50 cursor-pointer"
   >
     <Star className="w-5 h-5 text-yellow-400 shrink-0 fill-yellow-400" />
     <div className="min-w-0 flex-1">
@@ -559,7 +559,7 @@ const CategoryFolderCard: React.FC<{ name: string; count: number; onClick: () =>
     tabIndex={0}
     onClick={onClick}
     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
-    className="w-full group flex items-center gap-3 p-3 rounded-xl bg-gray-900 border border-white/5 hover:border-violet-500/40 hover:bg-gray-800 transition-all text-left focus:outline-none focus:ring-2 focus:ring-violet-500/50 cursor-pointer"
+    className="focusable-tv w-full group flex items-center gap-3 p-3 rounded-xl bg-gray-900 border border-white/5 hover:border-violet-500/40 hover:bg-gray-800 transition-all text-left focus:outline-none focus:ring-2 focus:ring-violet-500/50 cursor-pointer"
   >
     <Folder className="w-5 h-5 text-violet-400 shrink-0" />
     <div className="min-w-0 flex-1">
@@ -600,7 +600,7 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isFavorit
         {...lp}
         role="button"
         tabIndex={0}
-        className={`group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-200
+        className={`focusable-tv group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-200
           ${isActive ? 'ring-2 ring-violet-500 scale-[1.02]' : 'hover:scale-[1.04] hover:ring-1 hover:ring-white/20 focus:outline-none focus:ring-2 focus:ring-violet-500'}`}
       >
         <div className="aspect-[2/3] relative overflow-hidden">
@@ -668,7 +668,7 @@ const EpisodeRow: React.FC<EpisodeRowProps> = ({ channel, isActive, onSelect, on
       {...lp}
       role="button"
       tabIndex={0}
-      className={`group flex items-center gap-3 px-4 py-3 cursor-pointer transition-all focus:outline-none focus:bg-white/10
+      className={`focusable-tv group flex items-center gap-3 px-4 py-3 cursor-pointer transition-all focus:outline-none focus:bg-white/10
         ${isActive ? 'bg-violet-600/15 border-l-2 border-violet-500' : 'hover:bg-white/5 border-l-2 border-transparent'}`}
     >
     {/* Season/Episode pill */}
@@ -747,7 +747,7 @@ const PosterCard: React.FC<PosterCardProps> = ({ channel, isActive, onSelect, on
         {...lp}
         role="button"
         tabIndex={0}
-        className={`group relative rounded-lg overflow-hidden cursor-pointer transition-all duration-200 shrink-0 w-28 sm:w-32 focus:outline-none focus:scale-[1.04] focus:ring-2 focus:ring-violet-500
+        className={`focusable-tv group relative rounded-lg overflow-hidden cursor-pointer transition-all duration-200 shrink-0 w-28 sm:w-32 focus:outline-none focus:scale-[1.04] focus:ring-2 focus:ring-violet-500
           ${isActive ? 'ring-2 ring-violet-500 scale-[1.02]' : 'hover:scale-[1.04] hover:ring-1 hover:ring-white/20'}`}
       >
         <div className="aspect-[2/3] bg-gray-900 relative overflow-hidden">
@@ -795,7 +795,7 @@ const LiveChannelRow: React.FC<LiveChannelRowProps> = ({ channel, isActive, onSe
         {...lp}
         role="button"
         tabIndex={0}
-        className={`group flex items-center gap-3 px-4 py-3 cursor-pointer transition-all focus:outline-none focus:bg-white/10
+        className={`focusable-tv group flex items-center gap-3 px-4 py-3 cursor-pointer transition-all focus:outline-none focus:bg-white/10
           ${isActive ? 'bg-violet-600/15 border-l-2 border-violet-500' : 'hover:bg-white/5 border-l-2 border-transparent'}`}
       >
         <div className="w-10 h-10 rounded-lg bg-gray-800 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">

@@ -80,7 +80,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             href="https://drive.google.com/uc?export=download&id=1uaEDiEtXDLAuOZ8herlYwzicCY2A13OM"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 px-2.5 py-1.5 bg-violet-600/20 hover:bg-violet-600/40 text-violet-300 border border-violet-500/30 rounded-lg text-xs font-semibold transition-colors"
+            className="focusable-tv flex items-center gap-1 px-2.5 py-1.5 bg-violet-600/20 hover:bg-violet-600/40 text-violet-300 border border-violet-500/30 rounded-lg text-xs font-semibold transition-colors"
           >
             <Download className="w-3 h-3" />
             <span className="hidden xs:inline">App TV</span>
@@ -90,7 +90,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           {installPrompt && (
             <button
               onClick={onInstall}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-semibold transition-colors"
+              className="focusable-tv flex items-center gap-1 px-2.5 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-semibold transition-colors"
             >
               <Download className="w-3 h-3" />
               <span>Instalar</span>
@@ -110,7 +110,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           {/* Settings */}
           <button
             onClick={onOpenSettings}
-            className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+            className="focusable-tv p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
           >
             <Settings className="w-4 h-4 text-gray-400" />
           </button>
@@ -131,7 +131,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               onClick={() => onSelectSection(key)}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectSection(key); } }}
               className={`
-                group flex sm:flex-col items-center sm:justify-center gap-4 sm:gap-3
+                focusable-tv group flex sm:flex-col items-center sm:justify-center gap-4 sm:gap-3
                 bg-gradient-to-br ${gradient}
                 rounded-2xl border ${border}
                 px-5 py-4 sm:py-8 sm:px-6 cursor-pointer
