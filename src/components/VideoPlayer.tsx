@@ -48,6 +48,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fullscreenTriggered = useRef(false);
+  const lastSaveTimeRef = useRef<number | null>(null);
 
   const [status, setStatus] = useState<PlayerStatus>('idle');
   const [errorMsg, setErrorMsg] = useState('');
@@ -198,6 +199,30 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       video.play().catch(console.warn);
       setStatus('playing');
       showControls();
+
+      // Restore playback progress if not live
+      if (!isLive && currentId) {
+        const saved = localStorage.getItem(`iptv_progress_${currentId}`);
+        if (saved) {
+          const time = parseFloat(saved);
+          if (time > 5) {
+            const seek = () => {
+              if (video.duration && time >= video.duration - 15) {
+                // completed, start from beginning
+                return;
+              }
+              video.currentTime = time;
+              console.log(`[Player] Resumed playback to ${time}s`);
+            };
+            if (video.readyState >= 1) {
+              seek();
+            } else {
+              video.addEventListener('loadedmetadata', seek, { once: true });
+            }
+          }
+        }
+      }
+
       // Auto-fullscreen — deferred so it runs inside the play event (user gesture chain)
       setTimeout(() => { if (!fullscreenTriggered.current) { goFullscreen(); fullscreenTriggered.current = true; } }, 200);
     };
@@ -324,6 +349,26 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     showControls();
   };
 
+  const handleTimeUpdate = () => {
+    const video = videoRef.current;
+    if (!video || isLive || !currentId) return;
+
+    const currentTime = video.currentTime;
+    const duration = video.duration;
+
+    if (duration && duration > 0) {
+      if (currentTime >= duration - 15) {
+        localStorage.removeItem(`iptv_progress_${currentId}`);
+      } else if (currentTime > 5) {
+        const now = Date.now();
+        if (!lastSaveTimeRef.current || now - lastSaveTimeRef.current > 2000) {
+          localStorage.setItem(`iptv_progress_${currentId}`, currentTime.toString());
+          lastSaveTimeRef.current = now;
+        }
+      }
+    }
+  };
+
   return (
     <div
       ref={containerRef}
@@ -338,6 +383,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         className="w-full h-full object-contain"
         playsInline
         autoPlay
+        onTimeUpdate={handleTimeUpdate}
       />
 
       {/* ── Loading / Recovering overlay ── */}
