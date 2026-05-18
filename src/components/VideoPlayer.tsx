@@ -192,7 +192,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     retryCountRef.current = 0;
 
     const streamType = detectStreamType(streamUrl);
-    const proxied = streamType === 'direct' ? streamUrl : proxyUrl(streamUrl);
+    const proxied = proxyUrl(streamUrl);
 
     const onReady = () => {
       clearLoadTimeout();

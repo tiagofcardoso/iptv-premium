@@ -74,17 +74,24 @@ app.get('/proxy/stream', async (req, res) => {
   console.log(`[Proxy] → ${decodedUrl.substring(0, 100)}`);
 
   try {
-    // Set a 15-second timeout to avoid hanging requests on Render's free tier
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    // Do not abort active media streams immediately on 15s timeout
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Accept': '*/*',
+      'Connection': 'keep-alive',
+    };
+
+    // Forward the Range header if provided (critical for seeking movies/series)
+    if (req.headers.range) {
+      headers['Range'] = req.headers.range;
+    }
 
     const upstream = await fetch(decodedUrl, {
       signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': '*/*',
-        'Connection': 'keep-alive',
-      },
+      headers
     });
     clearTimeout(timeout);
 
@@ -98,6 +105,16 @@ app.get('/proxy/stream', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+
+    // Forward crucial range-related headers
+    const contentLength = upstream.headers.get('content-length');
+    if (contentLength) res.setHeader('Content-Length', contentLength);
+    
+    const contentRange = upstream.headers.get('content-range');
+    if (contentRange) res.setHeader('Content-Range', contentRange);
+    
+    const acceptRanges = upstream.headers.get('accept-ranges');
+    if (acceptRanges) res.setHeader('Accept-Ranges', acceptRanges);
 
     if (!upstream.body) { res.end(); return; }
 

@@ -140,9 +140,13 @@ function useLongPress(callback: () => void, onClickAction?: (e: any) => void, ms
   const isLongPressActive = useRef(false);
   const startTime = useRef<number>(0);
   const hasMoved = useRef<boolean>(false);
+  const lastTouchEnd = useRef<number>(0);
 
   const start = useCallback((e?: React.TouchEvent | React.MouseEvent | React.KeyboardEvent) => {
     if (e && 'key' in e && e.key !== 'Enter' && e.key !== ' ') return;
+    // Block ghost mouse events that fire right after a touch event on mobile
+    if (e && e.type.startsWith('mouse') && Date.now() - lastTouchEnd.current < 1000) return;
+    
     if (timerRef.current) return; // Prevent restart on key hold auto-repeat
 
     isLongPressActive.current = false;
@@ -169,6 +173,7 @@ function useLongPress(callback: () => void, onClickAction?: (e: any) => void, ms
 
   const end = useCallback((e?: React.TouchEvent | React.MouseEvent | React.KeyboardEvent) => {
     if (e && 'key' in e && e.key !== 'Enter' && e.key !== ' ') return;
+    if (e && e.type === 'touchend') lastTouchEnd.current = Date.now();
     
     cancel();
 
