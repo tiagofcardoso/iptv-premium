@@ -20,9 +20,9 @@ type SidebarView = 'categories' | 'channels' | 'favorites';
 const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
   const {
     channels, categories, currentChannel, activeCategory,
-    searchQuery, playlistUrl,
+    searchQuery, playlistUrl, tmdbApiKey,
     setChannels, setCurrentChannel, setActiveCategory,
-    setSearchQuery, toggleFavorite, clearPlaylist,
+    setSearchQuery, toggleFavorite, clearPlaylist, setTmdbApiKey,
   } = useIPTVStore();
 
   const [urlInput, setUrlInput] = useState(playlistUrl || '');
@@ -163,6 +163,19 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
               </button>
             </div>
           )}
+
+          <div className="pt-2.5 border-t border-white/5 space-y-1">
+            <label className="text-[10px] uppercase font-bold text-gray-500 tracking-wider block">
+              Chave API TMDB (Opcional)
+            </label>
+            <input
+              type="password"
+              value={tmdbApiKey}
+              onChange={e => setTmdbApiKey(e.target.value)}
+              placeholder="Usando chave padrão do app…"
+              className="focusable-tv w-full bg-gray-800 border border-white/10 text-white text-[11px] rounded-lg px-2.5 py-1.5 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-all"
+            />
+          </div>
         </div>
 
         {/* Search */}

@@ -14,6 +14,7 @@ interface IPTVState {
   history: HistoryEntry[];
   continueWatching: ContinueWatchingEntry[];
   isAutoLoading: boolean;
+  tmdbApiKey: string;
 
   // Actions
   setChannels: (channels: Channel[], url: string) => void;
@@ -28,6 +29,7 @@ interface IPTVState {
   clearHistory: () => void;
   saveProgress: (channel: Channel, progress: number, duration: number) => void;
   removeFromContinueWatching: (channelId: string) => void;
+  setTmdbApiKey: (key: string) => void;
 }
 
 export const useIPTVStore = create<IPTVState>()(
@@ -42,6 +44,7 @@ export const useIPTVStore = create<IPTVState>()(
       history: [],
       continueWatching: [],
       isAutoLoading: false,
+      tmdbApiKey: '',
 
       setChannels: (rawChannels, url) => {
         const { channels: existing } = get();
@@ -141,6 +144,8 @@ export const useIPTVStore = create<IPTVState>()(
       removeFromContinueWatching: (channelId) => {
         set({ continueWatching: get().continueWatching.filter(c => c.channelId !== channelId) });
       },
+
+      setTmdbApiKey: (key) => set({ tmdbApiKey: key }),
     }),
     {
       name: 'iptv-storage',
@@ -149,6 +154,7 @@ export const useIPTVStore = create<IPTVState>()(
         playlistUrl: state.playlistUrl,
         history: state.history,
         continueWatching: state.continueWatching,
+        tmdbApiKey: state.tmdbApiKey,
         // Persist favorites map separately (small)
         favorites: state.channels
           .filter(c => c.isFavorite)

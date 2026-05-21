@@ -158,9 +158,10 @@ function App() {
         return;
       }
 
-      // Check if Sidebar or Favorite Context Menu is open
+      // Check if Sidebar, Favorite Context Menu, or Detail Modal is open
       const sidebar = document.querySelector('aside');
       const contextMenu = document.getElementById('fav-context-menu');
+      const detailModal = document.getElementById('detail-modal');
 
       // Find all focusable elements with .focusable-tv class
       let candidates = Array.from(document.querySelectorAll('.focusable-tv')) as HTMLElement[];
@@ -168,12 +169,15 @@ function App() {
       if (contextMenu) {
         // If Context Menu is open, restrict focus navigation strictly inside the context menu
         candidates = candidates.filter(el => contextMenu.contains(el));
+      } else if (detailModal) {
+        // If Detail Modal is open, restrict focus navigation strictly inside the detail modal
+        candidates = candidates.filter(el => detailModal.contains(el));
       } else if (sidebar) {
         // If Sidebar is open, restrict navigation strictly inside the sidebar
         candidates = candidates.filter(el => sidebar.contains(el));
       } else {
-        // If both are closed, completely ignore any elements inside <aside> or the context menu
-        candidates = candidates.filter(el => !el.closest('aside') && !el.closest('#fav-context-menu'));
+        // If all are closed, completely ignore any elements inside <aside>, the context menu, or detail modal
+        candidates = candidates.filter(el => !el.closest('aside') && !el.closest('#fav-context-menu') && !el.closest('#detail-modal'));
       }
 
       if (candidates.length === 0) return;

@@ -2,6 +2,8 @@ import React, { useRef, useState, useMemo, useCallback, useEffect } from 'react'
 import { ChevronRight, Play, Heart, ArrowLeft, Tv, Folder, Star, Search, X } from 'lucide-react';
 import type { Channel, Category, ContinueWatchingEntry } from '../types/index.ts';
 import { useIPTVStore } from '../store/useIPTVStore.ts';
+import { getTMDBMetadata } from '../utils/tmdb.ts';
+import DetailModal from './DetailModal.tsx';
 
 interface ContentBrowserProps {
   section: 'live' | 'movies' | 'series';
@@ -346,7 +348,8 @@ function mostCommonLogo(channels: Channel[]): string {
 const ContentBrowser: React.FC<ContentBrowserProps> = ({
   section, channels, onBack, onSelectChannel,
 }) => {
-  const { currentChannel, toggleFavorite, continueWatching, removeFromContinueWatching } = useIPTVStore();
+  const { currentChannel, toggleFavorite, continueWatching, removeFromContinueWatching, tmdbApiKey } = useIPTVStore();
+  const [selectedDetailChannel, setSelectedDetailChannel] = useState<Channel | null>(null);
 
   const continueWatchingMovies = useMemo(() => {
     return continueWatching.filter(item => item.contentType === 'movie');
@@ -461,17 +464,18 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
 
   // ── Back button logic ──────────────────────────────────────────────────────
   const handleBack = useCallback(() => {
+    if (selectedDetailChannel) { setSelectedDetailChannel(null); return; }
     if (search || isSearchOpen) { setSearch(''); setIsSearchOpen(false); return; }   // back clears search first
     if (activeShow) { setActiveShow(null); return; }
     if (activeCategory) { setActiveCategory(null); return; }
     onBack();
-  }, [search, isSearchOpen, activeShow, activeCategory, onBack]);
+  }, [selectedDetailChannel, search, isSearchOpen, activeShow, activeCategory, onBack]);
 
   // Handle hardware/remote back button
   useEffect(() => {
     const onHardwareBack = (e: Event) => {
       // If we have local state to clear, prevent app exit/history back and clear it
-      if (search || isSearchOpen || activeShow || activeCategory) {
+      if (selectedDetailChannel || search || isSearchOpen || activeShow || activeCategory) {
         e.preventDefault();
         handleBack();
       }
@@ -482,7 +486,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
         // If we are typing in search, let Backspace work normally
         if (e.key === 'Backspace' && document.activeElement?.tagName === 'INPUT') return;
         
-        if (search || isSearchOpen || activeShow || activeCategory) {
+        if (selectedDetailChannel || search || isSearchOpen || activeShow || activeCategory) {
           e.preventDefault();
           e.stopPropagation();
           handleBack();
@@ -496,7 +500,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
       window.removeEventListener('app:hardwareBack', onHardwareBack);
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [search, isSearchOpen, activeShow, activeCategory, handleBack]);
+  }, [selectedDetailChannel, search, isSearchOpen, activeShow, activeCategory, handleBack]);
 
   // ── Breadcrumb title ───────────────────────────────────────────────────────
   const headerTitle = activeShow ?? (activeCategory === FAVS_KEY ? '⭐ Favoritos' : activeCategory) ?? TITLE_MAP[section];
@@ -602,7 +606,11 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
                       episodeCount={show.episodes.length}
                       isFavorite={show.isFavorite}
                       isActive={currentChannel ? (currentChannel.seriesName ?? currentChannel.name) === show.name : false}
-                      onClick={() => setActiveShow(show.name)}
+                      onClick={() => {
+                        if (show.episodes.length > 0) {
+                          setSelectedDetailChannel(show.episodes[0]);
+                        }
+                      }}
                       onToggleFav={() => {
                         if (show.episodes.length > 0) {
                           toggleFavorite(show.episodes[0].id);
@@ -648,7 +656,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
               <div className={`grid gap-2 ${isLive ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7'}`}>
                 {searchResults.map(ch => isLive
                   ? <LiveChannelRow key={ch.id} channel={ch} isActive={currentChannel?.id === ch.id} onSelect={() => onSelectChannel(ch)} onToggleFav={() => toggleFavorite(ch.id)} />
-                  : <PosterCard key={ch.id} channel={ch} isActive={currentChannel?.id === ch.id} onSelect={() => onSelectChannel(ch)} onToggleFav={() => toggleFavorite(ch.id)} />
+                  : <PosterCard key={ch.id} channel={ch} isActive={currentChannel?.id === ch.id} onSelect={() => setSelectedDetailChannel(ch)} onToggleFav={() => toggleFavorite(ch.id)} />
                 )}
               </div>
             )}
@@ -694,7 +702,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
               <ContinueWatchingRow
                 items={continueWatchingMovies}
                 currentChannelId={currentChannel?.id ?? null}
-                onSelect={onSelectChannel}
+                onSelect={setSelectedDetailChannel}
                 onRemove={removeFromContinueWatching}
               />
             )}
@@ -704,7 +712,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
               <CategoryRow
                 category={{ name: '⭐ Favoritos', channels: favoriteChannels }}
                 currentChannelId={currentChannel?.id ?? null}
-                onSelect={onSelectChannel}
+                onSelect={setSelectedDetailChannel}
                 onToggleFav={ch => toggleFavorite(ch.id)}
               />
             )}
@@ -713,7 +721,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
                 key={cat.name}
                 category={cat}
                 currentChannelId={currentChannel?.id ?? null}
-                onSelect={onSelectChannel}
+                onSelect={setSelectedDetailChannel}
                 onToggleFav={ch => toggleFavorite(ch.id)}
               />
             ))}
@@ -730,7 +738,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
               <ContinueWatchingRow
                 items={continueWatchingSeries}
                 currentChannelId={currentChannel?.id ?? null}
-                onSelect={onSelectChannel}
+                onSelect={setSelectedDetailChannel}
                 onRemove={removeFromContinueWatching}
               />
             )}
@@ -756,7 +764,11 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
                 episodeCount={show.episodes.length}
                 isFavorite={show.isFavorite}
                 isActive={currentChannel ? (currentChannel.seriesName ?? currentChannel.name) === show.name : false}
-                onClick={() => setActiveShow(show.name)}
+                onClick={() => {
+                  if (show.episodes.length > 0) {
+                    setSelectedDetailChannel(show.episodes[0]);
+                  }
+                }}
                 onToggleFav={() => {
                   // Toggle favorite on the first episode to mark the series as favorite
                   if (show.episodes.length > 0) {
@@ -783,6 +795,20 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
           </div>
         )}
 
+      {selectedDetailChannel && (
+        <DetailModal
+          channel={selectedDetailChannel}
+          allChannels={channels}
+          tmdbApiKey={tmdbApiKey}
+          onClose={() => setSelectedDetailChannel(null)}
+          onPlay={(ch) => {
+            setSelectedDetailChannel(null);
+            onSelectChannel(ch);
+          }}
+          onToggleFavorite={(id) => toggleFavorite(id)}
+          isFavorite={channels.find(c => c.id === selectedDetailChannel.id)?.isFavorite ?? false}
+        />
+      )}
       </div>
     </div>
   );
@@ -840,10 +866,39 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isFavorit
   const hue = Math.abs(name.split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0)) % 360;
   const gradientStyle = { background: `linear-gradient(160deg, hsl(${hue},55%,22%) 0%, hsl(${hue},40%,10%) 100%)` };
 
+  const [resolvedLogo, setResolvedLogo] = useState<string | null>(null);
+  const [hasFallbackToOriginal, setHasFallbackToOriginal] = useState(false);
+  const tmdbApiKey = useIPTVStore(state => state.tmdbApiKey);
+
+  useEffect(() => {
+    let active = true;
+    const fetchPoster = async () => {
+      const meta = await getTMDBMetadata(name, 'series', tmdbApiKey);
+      if (active) {
+        if (meta?.posterPath) {
+          setResolvedLogo(meta.posterPath);
+          setHasFallbackToOriginal(false);
+        } else {
+          setResolvedLogo(logo || null);
+          setHasFallbackToOriginal(true);
+        }
+      }
+    };
+    fetchPoster();
+    return () => {
+      active = false;
+    };
+  }, [name, logo, tmdbApiKey]);
+
   const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = e.target as HTMLImageElement;
-    img.style.display = 'none';
-    (img.parentElement?.querySelector('.show-fallback') as HTMLElement | null)?.style.setProperty('display', 'flex');
+    if (!hasFallbackToOriginal && logo) {
+      setResolvedLogo(logo);
+      setHasFallbackToOriginal(true);
+    } else {
+      const img = e.target as HTMLImageElement;
+      img.style.display = 'none';
+      (img.parentElement?.querySelector('.show-fallback') as HTMLElement | null)?.style.setProperty('display', 'flex');
+    }
   };
 
   return (
@@ -858,9 +913,9 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isFavorit
       >
         <div className="aspect-[2/3] relative overflow-hidden">
 
-          {logo ? (
+          {resolvedLogo ? (
           <img
-            src={logo} alt={name}
+            src={resolvedLogo} alt={name}
             className="w-full h-full object-cover"
             onError={handleImgError}
           />
@@ -869,7 +924,7 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isFavorit
         {/* Gradient fallback — only when no logo URL at all */}
         <div
           className="show-fallback absolute inset-0 flex flex-col items-end justify-end p-3 pb-8"
-          style={{ ...gradientStyle, display: logo ? 'none' : 'flex' }}
+          style={{ ...gradientStyle, display: resolvedLogo ? 'none' : 'flex' }}
         >
           <span
             className="absolute top-3 left-3 font-black leading-none select-none"
@@ -993,6 +1048,41 @@ const PosterCard: React.FC<PosterCardProps> = ({ channel, isActive, onSelect, on
   const [menuOpen, setMenuOpen] = useState(false);
   const lp = useLongPress(() => setMenuOpen(true), onSelect);
 
+  const [resolvedLogo, setResolvedLogo] = useState<string | null>(null);
+  const [hasFallbackToOriginal, setHasFallbackToOriginal] = useState(false);
+  const tmdbApiKey = useIPTVStore(state => state.tmdbApiKey);
+
+  useEffect(() => {
+    let active = true;
+    const fetchPoster = async () => {
+      const meta = await getTMDBMetadata(channel.name, 'movie', tmdbApiKey);
+      if (active) {
+        if (meta?.posterPath) {
+          setResolvedLogo(meta.posterPath);
+          setHasFallbackToOriginal(false);
+        } else {
+          setResolvedLogo(channel.logo || null);
+          setHasFallbackToOriginal(true);
+        }
+      }
+    };
+    fetchPoster();
+    return () => {
+      active = false;
+    };
+  }, [channel.name, channel.logo, tmdbApiKey]);
+
+  const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    if (!hasFallbackToOriginal && channel.logo) {
+      setResolvedLogo(channel.logo);
+      setHasFallbackToOriginal(true);
+    } else {
+      const el = e.target as HTMLImageElement;
+      el.style.display = 'none';
+      el.nextElementSibling?.classList.remove('hidden');
+    }
+  };
+
   return (
     <>
       {menuOpen && <FavContextMenu isFav={!!channel.isFavorite} name={channel.name} onToggle={onToggleFav} onClose={() => setMenuOpen(false)} />}
@@ -1004,11 +1094,11 @@ const PosterCard: React.FC<PosterCardProps> = ({ channel, isActive, onSelect, on
           ${isActive ? 'ring-2 ring-violet-500 scale-[1.02]' : 'hover:scale-[1.04] hover:ring-1 hover:ring-white/20'}`}
       >
         <div className="aspect-[2/3] bg-gray-900 relative overflow-hidden">
-          {channel.logo ? (
-            <img src={channel.logo} alt={channel.name} className="w-full h-full object-cover"
-              onError={e => { const el = e.target as HTMLImageElement; el.style.display = 'none'; el.nextElementSibling?.classList.remove('hidden'); }} />
+          {resolvedLogo ? (
+            <img src={resolvedLogo} alt={channel.name} className="w-full h-full object-cover"
+              onError={handleImgError} />
           ) : null}
-          <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-b from-gray-800 to-gray-900 ${channel.logo ? 'hidden' : ''}`}>
+          <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-b from-gray-800 to-gray-900 ${resolvedLogo ? 'hidden' : ''}`}>
             <Tv className="w-8 h-8 text-gray-600" />
             <p className="text-gray-500 text-xs text-center px-2 line-clamp-3">{channel.name}</p>
           </div>
@@ -1093,6 +1183,43 @@ const ContinueWatchingPosterCard: React.FC<{
     episodeNum: entry.episodeNum,
   };
 
+  const [resolvedLogo, setResolvedLogo] = useState<string | null>(null);
+  const [hasFallbackToOriginal, setHasFallbackToOriginal] = useState(false);
+  const tmdbApiKey = useIPTVStore(state => state.tmdbApiKey);
+
+  useEffect(() => {
+    let active = true;
+    const fetchPoster = async () => {
+      const type = entry.contentType === 'series' ? 'series' : 'movie';
+      const queryName = entry.contentType === 'series' && entry.seriesName ? entry.seriesName : entry.name;
+      const meta = await getTMDBMetadata(queryName, type, tmdbApiKey);
+      if (active) {
+        if (meta?.posterPath) {
+          setResolvedLogo(meta.posterPath);
+          setHasFallbackToOriginal(false);
+        } else {
+          setResolvedLogo(entry.logo || null);
+          setHasFallbackToOriginal(true);
+        }
+      }
+    };
+    fetchPoster();
+    return () => {
+      active = false;
+    };
+  }, [entry.name, entry.logo, entry.contentType, entry.seriesName, tmdbApiKey]);
+
+  const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    if (!hasFallbackToOriginal && entry.logo) {
+      setResolvedLogo(entry.logo);
+      setHasFallbackToOriginal(true);
+    } else {
+      const el = e.target as HTMLImageElement;
+      el.style.display = 'none';
+      el.nextElementSibling?.classList.remove('hidden');
+    }
+  };
+
   const lp = useLongPress(() => {}, () => onSelect(channel));
 
   return (
@@ -1104,11 +1231,11 @@ const ContinueWatchingPosterCard: React.FC<{
         ${isActive ? 'ring-2 ring-violet-500 scale-[1.02]' : 'hover:scale-[1.04] hover:ring-1 hover:ring-white/20'}`}
     >
       <div className="aspect-[2/3] bg-gray-900 relative overflow-hidden">
-        {channel.logo ? (
-          <img src={channel.logo} alt={channel.name} className="w-full h-full object-cover"
-            onError={e => { const el = e.target as HTMLImageElement; el.style.display = 'none'; el.nextElementSibling?.classList.remove('hidden'); }} />
+        {resolvedLogo ? (
+          <img src={resolvedLogo} alt={channel.name} className="w-full h-full object-cover"
+            onError={handleImgError} />
         ) : null}
-        <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-b from-gray-800 to-gray-900 ${channel.logo ? 'hidden' : ''}`}>
+        <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-b from-gray-800 to-gray-900 ${resolvedLogo ? 'hidden' : ''}`}>
           <Tv className="w-8 h-8 text-gray-600" />
           <p className="text-gray-500 text-[10px] text-center px-2 line-clamp-3">{channel.name}</p>
         </div>
