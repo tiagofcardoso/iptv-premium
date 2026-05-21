@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import type { PlayerStatus } from '../types/index.ts';
 import { proxyUrl } from '../utils/proxy.ts';
+import { useIPTVStore } from '../store/useIPTVStore.ts';
 
 interface VideoPlayerProps {
   url: string | null;
@@ -55,13 +56,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     if (isLive || !currentId) return;
     if (hasResumedRef.current === currentId) return;
 
-    const saved = localStorage.getItem(`iptv_progress_${currentId}`);
-    if (!saved) {
+    const entry = useIPTVStore.getState().continueWatching.find(c => c.channelId === currentId);
+    if (!entry) {
       hasResumedRef.current = currentId; // mark done if no progress
       return;
     }
 
-    const time = parseFloat(saved);
+    const time = entry.progress;
     if (time <= 5) {
       hasResumedRef.current = currentId;
       return;
@@ -356,11 +357,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       const video = videoRef.current;
       if (video && !isLive && currentId && video.currentTime > 5) {
         const duration = video.duration;
-        if (duration && video.currentTime < duration - 15) {
-          localStorage.setItem(`iptv_progress_${currentId}`, video.currentTime.toString());
-          console.log(`[Player] Saved progress on cleanup: ${video.currentTime}s`);
-        } else if (duration && video.currentTime >= duration - 15) {
-          localStorage.removeItem(`iptv_progress_${currentId}`);
+        const currentChannel = useIPTVStore.getState().currentChannel;
+        if (currentChannel) {
+          if (duration && video.currentTime < duration - 15) {
+            useIPTVStore.getState().saveProgress(currentChannel, video.currentTime, duration);
+            console.log(`[Player] Saved progress on cleanup: ${video.currentTime}s`);
+          } else if (duration && video.currentTime >= duration - 15) {
+            useIPTVStore.getState().removeFromContinueWatching(currentId);
+          }
         }
       }
       destroyHls();
@@ -388,11 +392,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
 
     if (duration && duration > 0) {
       if (currentTime >= duration - 15) {
-        localStorage.removeItem(`iptv_progress_${currentId}`);
+        useIPTVStore.getState().removeFromContinueWatching(currentId);
       } else if (currentTime > 5) {
         const now = Date.now();
         if (!lastSaveTimeRef.current || now - lastSaveTimeRef.current > 2000) {
-          localStorage.setItem(`iptv_progress_${currentId}`, currentTime.toString());
+          const currentChannel = useIPTVStore.getState().currentChannel;
+          if (currentChannel) {
+            useIPTVStore.getState().saveProgress(currentChannel, currentTime, duration);
+          }
           lastSaveTimeRef.current = now;
         }
       }

@@ -31,4 +31,21 @@ export interface HistoryEntry {
   watchedAt: number; // Date.now()
 }
 
+export interface ContinueWatchingEntry {
+  channelId: string;
+  name: string;
+  url: string;
+  logo: string;
+  group: string;
+  contentType?: Channel['contentType'];
+  seriesName?: string;
+  seasonNum?: number;
+  episodeNum?: number;
+  progress: number;
+  duration: number;
+  percentage: number;
+  updatedAt: number;
+}
+
 export type PlayerStatus = 'idle' | 'loading' | 'playing' | 'error' | 'recovering';
+

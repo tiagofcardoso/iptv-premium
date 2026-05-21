@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Channel, Category, HistoryEntry } from '../types/index.ts';
+import type { Channel, Category, HistoryEntry, ContinueWatchingEntry } from '../types/index.ts';
 import { groupByCategory } from '../utils/m3uParser.ts';
 
 interface IPTVState {
@@ -12,6 +12,7 @@ interface IPTVState {
   searchQuery: string;
   playlistUrl: string;
   history: HistoryEntry[];
+  continueWatching: ContinueWatchingEntry[];
   isAutoLoading: boolean;
 
   // Actions
@@ -25,6 +26,8 @@ interface IPTVState {
   addToHistory: (channel: Channel) => void;
   removeFromHistory: (channelId: string) => void;
   clearHistory: () => void;
+  saveProgress: (channel: Channel, progress: number, duration: number) => void;
+  removeFromContinueWatching: (channelId: string) => void;
 }
 
 export const useIPTVStore = create<IPTVState>()(
@@ -37,6 +40,7 @@ export const useIPTVStore = create<IPTVState>()(
       searchQuery: '',
       playlistUrl: '',
       history: [],
+      continueWatching: [],
       isAutoLoading: false,
 
       setChannels: (rawChannels, url) => {
@@ -111,6 +115,32 @@ export const useIPTVStore = create<IPTVState>()(
       },
 
       clearHistory: () => set({ history: [] }),
+
+      saveProgress: (channel, progress, duration) => {
+        const percentage = duration > 0 ? Math.round((progress / duration) * 100) : 0;
+        const existing = get().continueWatching.filter(c => c.channelId !== channel.id);
+        const entry: ContinueWatchingEntry = {
+          channelId: channel.id,
+          name: channel.name,
+          url: channel.url,
+          logo: channel.logo,
+          group: channel.group,
+          contentType: channel.contentType,
+          seriesName: channel.seriesName,
+          seasonNum: channel.seasonNum,
+          episodeNum: channel.episodeNum,
+          progress,
+          duration,
+          percentage,
+          updatedAt: Date.now(),
+        };
+        // Keep max 50 items, most recent first
+        set({ continueWatching: [entry, ...existing].slice(0, 50) });
+      },
+
+      removeFromContinueWatching: (channelId) => {
+        set({ continueWatching: get().continueWatching.filter(c => c.channelId !== channelId) });
+      },
     }),
     {
       name: 'iptv-storage',
@@ -118,6 +148,7 @@ export const useIPTVStore = create<IPTVState>()(
       partialize: (state) => ({
         playlistUrl: state.playlistUrl,
         history: state.history,
+        continueWatching: state.continueWatching,
         // Persist favorites map separately (small)
         favorites: state.channels
           .filter(c => c.isFavorite)

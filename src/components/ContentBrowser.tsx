@@ -1,6 +1,6 @@
 import React, { useRef, useState, useMemo, useCallback, useEffect } from 'react';
-import { ChevronRight, Play, Heart, ArrowLeft, Tv, Folder, Star, Search } from 'lucide-react';
-import type { Channel, Category } from '../types/index.ts';
+import { ChevronRight, Play, Heart, ArrowLeft, Tv, Folder, Star, Search, X } from 'lucide-react';
+import type { Channel, Category, ContinueWatchingEntry } from '../types/index.ts';
 import { useIPTVStore } from '../store/useIPTVStore.ts';
 
 interface ContentBrowserProps {
@@ -346,7 +346,15 @@ function mostCommonLogo(channels: Channel[]): string {
 const ContentBrowser: React.FC<ContentBrowserProps> = ({
   section, channels, onBack, onSelectChannel,
 }) => {
-  const { currentChannel, toggleFavorite } = useIPTVStore();
+  const { currentChannel, toggleFavorite, continueWatching, removeFromContinueWatching } = useIPTVStore();
+
+  const continueWatchingMovies = useMemo(() => {
+    return continueWatching.filter(item => item.contentType === 'movie');
+  }, [continueWatching]);
+
+  const continueWatchingSeries = useMemo(() => {
+    return continueWatching.filter(item => item.contentType === 'series');
+  }, [continueWatching]);
   const [search, setSearch] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchRef = React.useRef<HTMLInputElement>(null);
@@ -681,6 +689,16 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
 
         {!search.trim() && isMovies && (
           <div className="py-4 space-y-6">
+            {/* Continue Watching row */}
+            {continueWatchingMovies.length > 0 && (
+              <ContinueWatchingRow
+                items={continueWatchingMovies}
+                currentChannelId={currentChannel?.id ?? null}
+                onSelect={onSelectChannel}
+                onRemove={removeFromContinueWatching}
+              />
+            )}
+
             {/* Favourites row */}
             {favoriteChannels.length > 0 && (
               <CategoryRow
@@ -706,13 +724,24 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
 
         {/* Series: Platform folder grid */}
         {!search.trim() && isSeries && !activeCategory && (
-          <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {favoriteChannels.length > 0 && (
-              <FavCard count={favoriteChannels.length} onClick={() => setActiveCategory(FAVS_KEY)} />
+          <div className="py-4 space-y-6">
+            {/* Continue Watching row */}
+            {continueWatchingSeries.length > 0 && (
+              <ContinueWatchingRow
+                items={continueWatchingSeries}
+                currentChannelId={currentChannel?.id ?? null}
+                onSelect={onSelectChannel}
+                onRemove={removeFromContinueWatching}
+              />
             )}
-            {sectionCategories.map(cat => (
-              <CategoryFolderCard key={cat.name} name={cat.name} count={cat.channels.length} onClick={() => setActiveCategory(cat.name)} />
-            ))}
+            <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {favoriteChannels.length > 0 && (
+                <FavCard count={favoriteChannels.length} onClick={() => setActiveCategory(FAVS_KEY)} />
+              )}
+              {sectionCategories.map(cat => (
+                <CategoryFolderCard key={cat.name} name={cat.name} count={cat.channels.length} onClick={() => setActiveCategory(cat.name)} />
+              ))}
+            </div>
           </div>
         )}
 
@@ -1001,6 +1030,112 @@ const PosterCard: React.FC<PosterCardProps> = ({ channel, isActive, onSelect, on
         </div>
       </div>
     </>
+  );
+};
+
+// ─── Continue Watching Row & Card ─────────────────────────────────────────────
+
+interface ContinueWatchingRowProps {
+  items: ContinueWatchingEntry[];
+  currentChannelId: string | null;
+  onSelect: (ch: Channel) => void;
+  onRemove: (id: string) => void;
+}
+
+const ContinueWatchingRow: React.FC<ContinueWatchingRowProps> = ({ items, currentChannelId, onSelect, onRemove }) => {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [showAll, setShowAll] = useState(false);
+  const limit = showAll ? items.length : 20;
+  return (
+    <div>
+      <div className="flex items-center justify-between px-4 mb-3">
+        <h2 className="text-white font-semibold text-sm">🔄 Continue Assistindo</h2>
+        {items.length > 10 && (
+          <button onClick={() => setShowAll(s => !s)} className="flex items-center gap-1 text-xs text-gray-500 hover:text-violet-400 transition-colors">
+            <span>{showAll ? 'Menos' : `${items.length} | Mais`}</span>
+            <ChevronRight className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+      <div ref={rowRef} className={showAll
+        ? 'px-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2'
+        : 'flex gap-2 px-4 overflow-x-auto scrollbar-thin pb-1'
+      }>
+        {items.slice(0, limit).map(entry => (
+          <ContinueWatchingPosterCard
+            key={entry.channelId}
+            entry={entry}
+            isActive={currentChannelId === entry.channelId}
+            onSelect={onSelect}
+            onRemove={onRemove}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const ContinueWatchingPosterCard: React.FC<{
+  entry: ContinueWatchingEntry;
+  isActive: boolean;
+  onSelect: (ch: Channel) => void;
+  onRemove: (id: string) => void;
+}> = ({ entry, isActive, onSelect, onRemove }) => {
+  const channel: Channel = {
+    id: entry.channelId,
+    name: entry.name,
+    url: entry.url,
+    logo: entry.logo,
+    group: entry.group,
+    contentType: entry.contentType,
+    seriesName: entry.seriesName,
+    seasonNum: entry.seasonNum,
+    episodeNum: entry.episodeNum,
+  };
+
+  const lp = useLongPress(() => {}, () => onSelect(channel));
+
+  return (
+    <div
+      {...lp}
+      role="button"
+      tabIndex={0}
+      className={`focusable-tv group relative rounded-lg overflow-hidden cursor-pointer transition-all duration-200 shrink-0 w-28 sm:w-32 focus:outline-none focus:scale-[1.04] focus:ring-2 focus:ring-violet-500
+        ${isActive ? 'ring-2 ring-violet-500 scale-[1.02]' : 'hover:scale-[1.04] hover:ring-1 hover:ring-white/20'}`}
+    >
+      <div className="aspect-[2/3] bg-gray-900 relative overflow-hidden">
+        {channel.logo ? (
+          <img src={channel.logo} alt={channel.name} className="w-full h-full object-cover"
+            onError={e => { const el = e.target as HTMLImageElement; el.style.display = 'none'; el.nextElementSibling?.classList.remove('hidden'); }} />
+        ) : null}
+        <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-b from-gray-800 to-gray-900 ${channel.logo ? 'hidden' : ''}`}>
+          <Tv className="w-8 h-8 text-gray-600" />
+          <p className="text-gray-500 text-[10px] text-center px-2 line-clamp-3">{channel.name}</p>
+        </div>
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-center justify-center">
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="w-9 h-9 rounded-full bg-violet-600/90 flex items-center justify-center">
+              <Play className="w-3.5 h-3.5 text-white ml-0.5" />
+            </div>
+          </div>
+        </div>
+        <button onClick={e => { e.stopPropagation(); onRemove(channel.id); }}
+          className="absolute top-1.5 right-1.5 p-1 rounded-full text-white/70 bg-black/60 hover:text-red-400 hover:bg-black/90 transition-all focus:outline-none focus:ring-1 focus:ring-red-500"
+          title="Remover"
+        >
+          <X className="w-3 h-3" />
+        </button>
+        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-gray-800">
+          <div className="bg-red-600 h-full rounded-r transition-all duration-300" style={{ width: `${entry.percentage}%` }} />
+        </div>
+      </div>
+      <div className="bg-gray-900 px-1.5 py-1.5">
+        <p className="text-white text-xs font-medium truncate">{channel.seriesName ?? channel.name}</p>
+        {entry.contentType === 'series' && entry.seasonNum != null && (
+          <p className="text-[10px] text-violet-400 font-semibold mt-0.5">T{entry.seasonNum} E{entry.episodeNum}</p>
+        )}
+      </div>
+    </div>
   );
 };
 

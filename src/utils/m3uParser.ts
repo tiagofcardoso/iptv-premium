@@ -49,6 +49,18 @@ function detectContentType(group: string, url: string): Channel['contentType'] {
   if (u.includes('/movie/')) return 'movie';
   if (u.includes('/series/')) return 'series';
 
+  // Group name fallback: if the group indicates a live channel category containing movies/series, treat as live
+  if (
+    g.includes('filmes e series') ||
+    g.includes('filmes & series') ||
+    g.includes('filme e serie') ||
+    g.includes('filme & serie') ||
+    g.includes('canais') ||
+    g.includes('live')
+  ) {
+    return 'live';
+  }
+
   // Group name fallback (accent-normalized)
   if (g.includes('film') || g.includes('movie') || g.includes('filme') || g.includes('cinema')) return 'movie';
   if (
