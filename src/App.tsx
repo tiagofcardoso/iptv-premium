@@ -66,7 +66,16 @@ function App() {
       }
 
       setScreen(target as NavScreen);
-      if (target !== 'player') setCurrentChannel(null as any);
+      if (target !== 'player') {
+        setCurrentChannel(null as any);
+        try {
+          if (document.fullscreenElement) {
+            document.exitFullscreen().catch(() => {});
+          } else if ((document as any).webkitFullscreenElement) {
+            (document as any).webkitExitFullscreen();
+          }
+        } catch {}
+      }
       setShowSidebar(false);
     };
 
@@ -328,14 +337,19 @@ function App() {
     setCurrentChannel(channel);
     navigateTo('player');
     
-    // Request fullscreen immediately inside the user click gesture!
-    setTimeout(() => {
-      try {
-        playerRef.current?.requestFullscreen();
-      } catch (err) {
-        console.warn('Auto-fullscreen on select blocked or failed:', err);
+    // Request fullscreen synchronously inside the user click gesture!
+    try {
+      const docEl = document.documentElement;
+      if (docEl.requestFullscreen) {
+        docEl.requestFullscreen().catch((err) => {
+          console.warn('docEl.requestFullscreen rejected:', err);
+        });
+      } else if ((docEl as any).webkitRequestFullscreen) {
+        (docEl as any).webkitRequestFullscreen();
       }
-    }, 80);
+    } catch (err) {
+      console.warn('Auto-fullscreen on select blocked or failed:', err);
+    }
   };
 
   // ── Content counts ────────────────────────────────────────────────────────────

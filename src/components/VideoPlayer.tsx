@@ -49,6 +49,39 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fullscreenTriggered = useRef(false);
   const lastSaveTimeRef = useRef<number | null>(null);
+  const hasResumedRef = useRef<string | null>(null);
+
+  const attemptResume = useCallback((video: HTMLVideoElement) => {
+    if (isLive || !currentId) return;
+    if (hasResumedRef.current === currentId) return;
+
+    const saved = localStorage.getItem(`iptv_progress_${currentId}`);
+    if (!saved) {
+      hasResumedRef.current = currentId; // mark done if no progress
+      return;
+    }
+
+    const time = parseFloat(saved);
+    if (time <= 5) {
+      hasResumedRef.current = currentId;
+      return;
+    }
+
+    try {
+      if (video.readyState >= 1) {
+        if (video.duration && time >= video.duration - 15) {
+          hasResumedRef.current = currentId;
+          return;
+        }
+        video.currentTime = time;
+        hasResumedRef.current = currentId;
+        console.log(`[Player] Successfully resumed playback to ${time}s (readyState: ${video.readyState})`);
+      }
+    } catch (err) {
+      console.warn('[Player] Resume seek failed:', err);
+    }
+  }, [isLive, currentId]);
+
 
   const [status, setStatus] = useState<PlayerStatus>('idle');
   const [errorMsg, setErrorMsg] = useState('');
@@ -190,6 +223,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     setErrorMsg('');
     setPaused(false);
     retryCountRef.current = 0;
+    hasResumedRef.current = null; // Reset resume status for new content
 
     const streamType = detectStreamType(streamUrl);
     const proxied = proxyUrl(streamUrl);
@@ -200,31 +234,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       setStatus('playing');
       showControls();
 
-      // Restore playback progress if not live
-      if (!isLive && currentId) {
-        const saved = localStorage.getItem(`iptv_progress_${currentId}`);
-        if (saved) {
-          const time = parseFloat(saved);
-          if (time > 5) {
-            const seek = () => {
-              if (video.duration && time >= video.duration - 15) {
-                // completed, start from beginning
-                return;
-              }
-              video.currentTime = time;
-              console.log(`[Player] Resumed playback to ${time}s`);
-            };
-            
-            seek();
-            // Robust multi-phase seek fallback to fully survive initial player state resets
-            setTimeout(seek, 150);
-            setTimeout(seek, 300);
-            setTimeout(seek, 600);
-            video.addEventListener('playing', seek, { once: true });
-            video.addEventListener('canplay', seek, { once: true });
-          }
-        }
-      }
+      // Restore playback progress if not live (using our multi-phase fallback)
+      attemptResume(video);
+      setTimeout(() => attemptResume(video), 150);
+      setTimeout(() => attemptResume(video), 400);
+      setTimeout(() => attemptResume(video), 800);
 
       // Auto-fullscreen — deferred so it runs inside the play event (user gesture chain)
       setTimeout(() => { if (!fullscreenTriggered.current) { goFullscreen(); fullscreenTriggered.current = true; } }, 50);
@@ -337,9 +351,22 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
   useEffect(() => {
     if (!url) { destroyHls(); clearLoadTimeout(); setStatus('idle'); return; }
     initPlayer(url);
-    return () => { destroyHls(); clearLoadTimeout(); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url]);
+    return () => {
+      // Save progress immediately on unmount/stream change before destroying
+      const video = videoRef.current;
+      if (video && !isLive && currentId && video.currentTime > 5) {
+        const duration = video.duration;
+        if (duration && video.currentTime < duration - 15) {
+          localStorage.setItem(`iptv_progress_${currentId}`, video.currentTime.toString());
+          console.log(`[Player] Saved progress on cleanup: ${video.currentTime}s`);
+        } else if (duration && video.currentTime >= duration - 15) {
+          localStorage.removeItem(`iptv_progress_${currentId}`);
+        }
+      }
+      destroyHls();
+      clearLoadTimeout();
+    };
+  }, [url, currentId, isLive]);
 
   const handleRetry = () => { if (url) initPlayer(url); };
 
@@ -387,6 +414,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         playsInline
         autoPlay
         onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={(e) => attemptResume(e.currentTarget)}
+        onCanPlay={(e) => attemptResume(e.currentTarget)}
+        onPlay={(e) => attemptResume(e.currentTarget)}
       />
 
       {/* ── Loading / Recovering overlay ── */}

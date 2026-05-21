@@ -139,7 +139,9 @@ function useLongPress(callback: () => void, onClickAction?: (e: any) => void, ms
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLongPressActive = useRef(false);
   const startTime = useRef<number>(0);
-  const hasMoved = useRef<boolean>(false);
+  const startX = useRef<number>(0);
+  const startY = useRef<number>(0);
+  const hasMovedSignificant = useRef<boolean>(false);
   const lastTouchEnd = useRef<number>(0);
 
   const start = useCallback((e?: React.TouchEvent | React.MouseEvent | React.KeyboardEvent) => {
@@ -150,8 +152,18 @@ function useLongPress(callback: () => void, onClickAction?: (e: any) => void, ms
     if (timerRef.current) return; // Prevent restart on key hold auto-repeat
 
     isLongPressActive.current = false;
-    hasMoved.current = false;
+    hasMovedSignificant.current = false;
     startTime.current = Date.now();
+
+    if (e) {
+      if ('touches' in e && e.touches.length > 0) {
+        startX.current = e.touches[0].clientX;
+        startY.current = e.touches[0].clientY;
+      } else if ('clientX' in e) {
+        startX.current = (e as any).clientX;
+        startY.current = (e as any).clientY;
+      }
+    }
 
     timerRef.current = setTimeout(() => {
       isLongPressActive.current = true;
@@ -166,9 +178,33 @@ function useLongPress(callback: () => void, onClickAction?: (e: any) => void, ms
     }
   }, []);
 
-  const handleTouchMove = useCallback(() => {
-    hasMoved.current = true;
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length > 0) {
+      const dx = e.touches[0].clientX - startX.current;
+      const dy = e.touches[0].clientY - startY.current;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 10) {
+        hasMovedSignificant.current = true;
+        cancel();
+      }
+    }
+  }, [cancel]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (startTime.current > 0) {
+      const dx = e.clientX - startX.current;
+      const dy = e.clientY - startY.current;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 10) {
+        hasMovedSignificant.current = true;
+        cancel();
+      }
+    }
+  }, [cancel]);
+
+  const handleTouchCancel = useCallback(() => {
     cancel();
+    hasMovedSignificant.current = true; // treat as moved to block any click
   }, [cancel]);
 
   const end = useCallback((e?: React.TouchEvent | React.MouseEvent | React.KeyboardEvent) => {
@@ -177,8 +213,29 @@ function useLongPress(callback: () => void, onClickAction?: (e: any) => void, ms
     
     cancel();
 
-    if (hasMoved.current) {
-      hasMoved.current = false;
+    let finalMoved = hasMovedSignificant.current;
+    if (e && !finalMoved) {
+      let clientX = 0;
+      let clientY = 0;
+      if ('changedTouches' in e && e.changedTouches.length > 0) {
+        clientX = e.changedTouches[0].clientX;
+        clientY = e.changedTouches[0].clientY;
+      } else if ('clientX' in e) {
+        clientX = (e as any).clientX;
+        clientY = (e as any).clientY;
+      }
+      if (clientX || clientY) {
+        const dx = clientX - startX.current;
+        const dy = clientY - startY.current;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 10) {
+          finalMoved = true;
+        }
+      }
+    }
+
+    if (finalMoved) {
+      hasMovedSignificant.current = false;
       return;
     }
 
@@ -210,10 +267,12 @@ function useLongPress(callback: () => void, onClickAction?: (e: any) => void, ms
   return { 
     onMouseDown: start, 
     onMouseUp: end, 
+    onMouseMove: handleMouseMove,
     onMouseLeave: cancel, 
     onTouchStart: start, 
     onTouchEnd: end, 
     onTouchMove: handleTouchMove,
+    onTouchCancel: handleTouchCancel,
     onKeyDown: start,
     onKeyUp: end,
     onContextMenu: handleContextMenu,

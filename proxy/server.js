@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import { Readable } from 'stream';
+
 
 const app = express();
 // Render uses process.env.PORT dynamically
@@ -75,6 +77,9 @@ app.get('/proxy/stream', async (req, res) => {
 
   try {
     const controller = new AbortController();
+    const onReqClose = () => controller.abort();
+    req.on('close', onReqClose);
+
     // Do not abort active media streams immediately on 15s timeout
     const timeout = setTimeout(() => controller.abort(), 30000);
 
@@ -128,15 +133,23 @@ app.get('/proxy/stream', async (req, res) => {
       res.setHeader('Content-Type', 'application/x-mpegurl; charset=utf-8');
       res.send(rewritten);
     } else {
-      // Binary stream (TS segments, MP4, etc.) — pipe directly
+      // Binary stream (TS segments, MP4, etc.) — pipe directly with backpressure
       if (ct) res.setHeader('Content-Type', ct);
-      const reader = upstream.body.getReader();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        res.write(value);
-      }
-      res.end();
+      
+      const nodeStream = Readable.fromWeb(upstream.body);
+      
+      // Handle cleanup when client aborts/closes connection early
+      req.on('close', () => {
+        nodeStream.destroy();
+        controller.abort();
+      });
+
+      nodeStream.on('error', (err) => {
+        console.error('[Proxy Stream] Stream nodeStream error:', err.message);
+        controller.abort();
+      });
+
+      nodeStream.pipe(res);
     }
   } catch (err) {
     console.error('[Proxy] Error fetching stream:', err.message);
