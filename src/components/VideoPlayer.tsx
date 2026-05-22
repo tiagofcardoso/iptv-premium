@@ -248,14 +248,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     // ── HLS.js ─────────────────────────────────────────────────────────────────
     if (streamType === 'hls' && Hls.isSupported()) {
       const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
+        enableWorker: false, // Disable workers to prevent multithreading crashes in Android TV WebViews
+        lowLatencyMode: false, // Turn off low-latency mode to reduce resource consumption on Smart TVs
         // Faster startup — start with lowest quality, switch up quickly
         startLevel: -1,            // auto
         abrEwmaDefaultEstimate: 8_000_000, // assume 8Mbps initially (faster first segment)
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
-        maxBufferSize: 60 * 1024 * 1024,
+        maxBufferLength: 10,       // Keep buffer short (10s instead of 30s)
+        maxMaxBufferLength: 15,    // Max buffer 15s instead of 60s
+        maxBufferSize: 15 * 1024 * 1024, // 15MB buffer limit (down from 60MB) to prevent OOM
+        backBufferLength: 10,      // Automatically purge played video segments from memory
         // Reduce retry delays for faster error recovery
         manifestLoadingMaxRetry: 3,
         manifestLoadingRetryDelay: 500,
