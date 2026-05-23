@@ -18,7 +18,7 @@ interface IPTVState {
 
   // Actions
   setChannels: (channels: Channel[], url: string) => void;
-  setCurrentChannel: (channel: Channel) => void;
+  setCurrentChannel: (channel: Channel | null) => void;
   setActiveCategory: (name: string | null) => void;
   setSearchQuery: (q: string) => void;
   toggleFavorite: (channelId: string) => void;
@@ -66,8 +66,10 @@ export const useIPTVStore = create<IPTVState>()(
 
       setCurrentChannel: (channel) => {
         set({ currentChannel: channel });
-        // Auto-add to history
-        get().addToHistory(channel);
+        // Auto-add to history if not null
+        if (channel) {
+          get().addToHistory(channel);
+        }
       },
 
       setActiveCategory: (name) => set({ activeCategory: name }),
@@ -99,7 +101,8 @@ export const useIPTVStore = create<IPTVState>()(
         }),
 
       addToHistory: (channel) => {
-        const existing = get().history.filter(h => h.channelId !== channel.id);
+        if (!channel) return;
+        const existing = get().history.filter(h => h && h.channelId !== channel.id);
         const entry: HistoryEntry = {
           channelId: channel.id,
           name: channel.name,
@@ -120,8 +123,9 @@ export const useIPTVStore = create<IPTVState>()(
       clearHistory: () => set({ history: [] }),
 
       saveProgress: (channel, progress, duration) => {
+        if (!channel) return;
         const percentage = duration > 0 ? Math.round((progress / duration) * 100) : 0;
-        const existing = get().continueWatching.filter(c => c.channelId !== channel.id);
+        const existing = get().continueWatching.filter(c => c && c.channelId !== channel.id);
         const entry: ContinueWatchingEntry = {
           channelId: channel.id,
           name: channel.name,

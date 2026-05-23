@@ -67,7 +67,7 @@ function App() {
 
       setScreen(target as NavScreen);
       if (target !== 'player') {
-        setCurrentChannel(null as any);
+        setCurrentChannel(null);
         try {
           if (document.fullscreenElement) {
             document.exitFullscreen().catch(() => {});
