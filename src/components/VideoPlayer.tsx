@@ -39,6 +39,18 @@ function detectStreamType(url: string): 'hls' | 'direct' {
   return 'hls';
 }
 
+function formatTime(seconds: number): string {
+  if (isNaN(seconds) || seconds === Infinity || seconds < 0) return '00:00';
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  
+  if (hrs > 0) {
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
 const LOAD_TIMEOUT_MS = 15000; // reduced from 20s for faster feedback
 
 const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
@@ -89,6 +101,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
   const retryCountRef = useRef(0);
   const currentUrlRef = useRef<string | null>(null);
 
@@ -182,6 +196,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     showControls();
   };
 
+  const handleScrubChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = parseFloat(e.target.value);
+    const video = videoRef.current;
+    if (video) {
+      video.currentTime = time;
+      setCurrentTime(time);
+    }
+    showControls();
+  };
+
   const goNext = useCallback(() => {
     if (hasNext && onNavigate) onNavigate(playlist[currentIdx + 1].id);
   }, [hasNext, currentIdx, playlist, onNavigate]);
@@ -195,11 +219,35 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const handler = (e: KeyboardEvent) => {
       // Only intercept when player is active
       if (status !== 'playing' && status !== 'loading') return;
+      const video = videoRef.current;
       switch (e.key) {
-        case 'ArrowRight': e.preventDefault(); goNext(); break;
-        case 'ArrowLeft':  e.preventDefault(); goPrev(); break;
+        case 'ArrowRight':
+          e.preventDefault();
+          if (isLive) {
+            goNext();
+          } else if (video) {
+            const nextTime = Math.min(video.currentTime + 10, video.duration || Infinity);
+            video.currentTime = nextTime;
+            setCurrentTime(nextTime);
+          }
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          if (isLive) {
+            goPrev();
+          } else if (video) {
+            const prevTime = Math.max(video.currentTime - 10, 0);
+            video.currentTime = prevTime;
+            setCurrentTime(prevTime);
+          }
+          break;
         case ' ':
-        case 'Enter':      e.preventDefault(); togglePlayPause(); break;
+        case 'Enter':
+          e.preventDefault();
+          if (document.activeElement?.tagName !== 'BUTTON' && document.activeElement?.tagName !== 'INPUT') {
+            togglePlayPause();
+          }
+          break;
         case 'm':
         case 'M':          toggleMute(); break;
         case 'f':
@@ -210,7 +258,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [status, goNext, goPrev, goFullscreen, showControls]);
+  }, [status, isLive, goNext, goPrev, goFullscreen, showControls]);
 
   const initPlayer = (streamUrl: string) => {
     const video = videoRef.current;
@@ -225,6 +273,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     setPaused(false);
     retryCountRef.current = 0;
     hasResumedRef.current = null; // Reset resume status for new content
+    setCurrentTime(0);
+    setDuration(0);
 
     const streamType = detectStreamType(streamUrl);
     const proxied = proxyUrl(streamUrl);
@@ -397,20 +447,27 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
 
   const handleTimeUpdate = () => {
     const video = videoRef.current;
-    if (!video || isLive || !currentId) return;
+    if (!video) return;
 
-    const currentTime = video.currentTime;
-    const duration = video.duration;
+    setCurrentTime(video.currentTime);
+    if (video.duration) {
+      setDuration(video.duration);
+    }
 
-    if (duration && duration > 0) {
-      if (currentTime >= duration - 15) {
+    if (isLive || !currentId) return;
+
+    const currentTimeVal = video.currentTime;
+    const durationVal = video.duration;
+
+    if (durationVal && durationVal > 0) {
+      if (currentTimeVal >= durationVal - 15) {
         useIPTVStore.getState().removeFromContinueWatching(currentId);
-      } else if (currentTime > 5) {
+      } else if (currentTimeVal > 5) {
         const now = Date.now();
         if (!lastSaveTimeRef.current || now - lastSaveTimeRef.current > 2000) {
           const currentChannel = useIPTVStore.getState().currentChannel;
           if (currentChannel) {
-            useIPTVStore.getState().saveProgress(currentChannel, currentTime, duration);
+            useIPTVStore.getState().saveProgress(currentChannel, currentTimeVal, durationVal);
           }
           lastSaveTimeRef.current = now;
         }
@@ -433,9 +490,18 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         playsInline
         autoPlay
         onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={(e) => attemptResume(e.currentTarget)}
-        onCanPlay={(e) => attemptResume(e.currentTarget)}
-        onPlay={(e) => attemptResume(e.currentTarget)}
+        onLoadedMetadata={(e) => {
+          if (e.currentTarget.duration) setDuration(e.currentTarget.duration);
+          attemptResume(e.currentTarget);
+        }}
+        onCanPlay={(e) => {
+          if (e.currentTarget.duration) setDuration(e.currentTarget.duration);
+          attemptResume(e.currentTarget);
+        }}
+        onPlay={(e) => {
+          if (e.currentTarget.duration) setDuration(e.currentTarget.duration);
+          attemptResume(e.currentTarget);
+        }}
       />
 
       {/* ── Loading / Recovering overlay ── */}
@@ -496,8 +562,25 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             )}
           </div>
 
-          {/* Bottom gradient + controls row */}
-          <div className="h-20 bg-gradient-to-t from-black/80 to-transparent flex items-end px-3 pb-3">
+          {/* Bottom gradient + controls container */}
+          <div className="bg-gradient-to-t from-black/95 via-black/60 to-transparent flex flex-col justify-end px-4 pb-4 pt-12">
+            
+            {/* Scrubber slider (only for VOD) */}
+            {!isLive && (
+              <div className="flex items-center gap-3 w-full mb-3 select-none" onClick={e => e.stopPropagation()}>
+                <span className="text-white text-[11px] font-mono select-none shrink-0">{formatTime(currentTime)}</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={duration || 100}
+                  value={currentTime}
+                  onChange={handleScrubChange}
+                  className="focusable-tv video-scrubber flex-1 cursor-pointer focus:outline-none"
+                />
+                <span className="text-white text-[11px] font-mono select-none shrink-0">{formatTime(duration)}</span>
+              </div>
+            )}
+
             <div className="flex items-center gap-2 w-full" onClick={e => e.stopPropagation()}>
 
               {/* Prev */}
