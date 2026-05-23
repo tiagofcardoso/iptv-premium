@@ -282,6 +282,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (!data.fatal) return;
         const httpStatus = data.response?.code;
+        console.error(`[Player] Erro fatal Hls.js: ${data.type} - ${data.details}. HTTP Status: ${httpStatus || 'N/A'}`);
 
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR && retryCountRef.current < 2) {
           retryCountRef.current++;
@@ -356,16 +357,26 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     return () => {
       // Save progress immediately on unmount/stream change before destroying
       const video = videoRef.current;
-      if (video && !isLive && currentId && video.currentTime > 5) {
-        const duration = video.duration;
-        const currentChannel = useIPTVStore.getState().currentChannel;
-        if (currentChannel) {
-          if (duration && video.currentTime < duration - 15) {
-            useIPTVStore.getState().saveProgress(currentChannel, video.currentTime, duration);
-            console.log(`[Player] Saved progress on cleanup: ${video.currentTime}s`);
-          } else if (duration && video.currentTime >= duration - 15) {
-            useIPTVStore.getState().removeFromContinueWatching(currentId);
+      if (video) {
+        if (!isLive && currentId && video.currentTime > 5) {
+          const duration = video.duration;
+          const currentChannel = useIPTVStore.getState().currentChannel;
+          if (currentChannel) {
+            if (duration && video.currentTime < duration - 15) {
+              useIPTVStore.getState().saveProgress(currentChannel, video.currentTime, duration);
+              console.log(`[Player] Saved progress on cleanup: ${video.currentTime}s`);
+            } else if (duration && video.currentTime >= duration - 15) {
+              useIPTVStore.getState().removeFromContinueWatching(currentId);
+            }
           }
+        }
+        try {
+          video.pause();
+          video.removeAttribute('src'); // removes source attribute to free pipeline
+          video.load(); // forces native browser memory release
+          console.log('[Player] Libertação explícita de decodificadores de vídeo concluída.');
+        } catch (err) {
+          console.warn('[Player] Erro ao limpar elemento de vídeo:', err);
         }
       }
       destroyHls();

@@ -158,10 +158,11 @@ function App() {
         return;
       }
 
-      // Check if Sidebar, Favorite Context Menu, or Detail Modal is open
+      // Check if Sidebar, Favorite Context Menu, Detail Modal, or Logs Modal is open
       const sidebar = document.querySelector('aside');
       const contextMenu = document.getElementById('fav-context-menu');
       const detailModal = document.getElementById('detail-modal');
+      const logsModal = document.getElementById('logs-modal');
 
       // Find all focusable elements with .focusable-tv class
       let candidates = Array.from(document.querySelectorAll('.focusable-tv')) as HTMLElement[];
@@ -169,6 +170,9 @@ function App() {
       if (contextMenu) {
         // If Context Menu is open, restrict focus navigation strictly inside the context menu
         candidates = candidates.filter(el => contextMenu.contains(el));
+      } else if (logsModal) {
+        // If Logs Modal is open, restrict focus navigation strictly inside the logs modal
+        candidates = candidates.filter(el => logsModal.contains(el));
       } else if (detailModal) {
         // If Detail Modal is open, restrict focus navigation strictly inside the detail modal
         candidates = candidates.filter(el => detailModal.contains(el));

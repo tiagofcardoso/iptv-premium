@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Search, Tv, ChevronRight, ChevronLeft, ChevronDown,
   List, Heart, Loader2, Link, UploadCloud, Trash2,
@@ -8,6 +8,8 @@ import { useIPTVStore } from '../store/useIPTVStore.ts';
 import { fetchM3U, parseM3U } from '../utils/m3uParser.ts';
 import type { Channel } from '../types/index.ts';
 import type { VideoPlayerHandle } from './VideoPlayer.tsx';
+import { logger, type LogEntry } from '../utils/logger.ts';
+
 
 interface SidebarProps {
   isOpen: boolean;
@@ -29,6 +31,41 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [view, setView] = useState<SidebarView>('categories');
+
+  const [showLogsModal, setShowLogsModal] = useState(false);
+  const [logsList, setLogsList] = useState<LogEntry[]>(logger.getLogs());
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Subscrever às atualizações de logs em tempo real quando o modal está aberto
+  useEffect(() => {
+    if (!showLogsModal) return;
+    setLogsList(logger.getLogs());
+    const unsubscribe = logger.subscribe(() => {
+      setLogsList(logger.getLogs());
+    });
+    return unsubscribe;
+  }, [showLogsModal]);
+
+  // Fechar o modal de logs com o botão de retroceder (back button) da TV
+  useEffect(() => {
+    if (!showLogsModal) return;
+    const handleHardwareBack = (e: Event) => {
+      e.preventDefault();
+      setShowLogsModal(false);
+    };
+    window.addEventListener('app:hardwareBack', handleHardwareBack);
+    return () => window.removeEventListener('app:hardwareBack', handleHardwareBack);
+  }, [showLogsModal]);
+
+  // Auto-focar o botão de fechar ao abrir o modal de logs para navegação por comando
+  useEffect(() => {
+    if (showLogsModal) {
+      setTimeout(() => {
+        closeButtonRef.current?.focus();
+      }, 150);
+    }
+  }, [showLogsModal]);
+
 
   const handleLoadPlaylist = async () => {
     if (!urlInput.trim()) return;
@@ -176,7 +213,17 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
               className="focusable-tv w-full bg-gray-800 border border-white/10 text-white text-[11px] rounded-lg px-2.5 py-1.5 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-all"
             />
           </div>
+
+          <div className="pt-2 border-t border-white/5 flex gap-2">
+            <button
+              onClick={() => setShowLogsModal(true)}
+              className="focusable-tv flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-850 hover:bg-gray-800 border border-white/10 hover:border-violet-500/40 text-gray-300 hover:text-white rounded-lg text-[10px] font-semibold transition-all active:scale-[0.97] cursor-pointer"
+            >
+              <span>🛠️ Logs de Diagnóstico</span>
+            </button>
+          </div>
         </div>
+
 
         {/* Search */}
         {channels.length > 0 && (
@@ -324,6 +371,63 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
           )}
         </div>
       </aside>
+
+      {/* ── Logs Modal ── */}
+      {showLogsModal && (
+        <div id="logs-modal" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl h-[80vh] bg-gray-950 border border-white/10 rounded-2xl flex flex-col overflow-hidden shadow-2xl">
+            {/* Modal Header */}
+            <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between bg-gray-900 shrink-0">
+              <div>
+                <h3 className="text-white font-bold text-sm tracking-wide">Logs de Diagnóstico</h3>
+                <p className="text-[10px] text-gray-500">Últimos {logsList.length} eventos registados (comando da TV suportado)</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { logger.clear(); }}
+                  className="focusable-tv px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg text-[10px] font-semibold transition-all active:scale-[0.97]"
+                >
+                  Limpar
+                </button>
+                <button
+                  ref={closeButtonRef}
+                  onClick={() => setShowLogsModal(false)}
+                  className="focusable-tv px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-[10px] font-semibold transition-all active:scale-[0.97]"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-1.5 font-mono text-[9px] bg-gray-950 scrollbar-thin">
+              {logsList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-gray-600 text-xs">
+                  <span>Nenhum log registado ainda.</span>
+                </div>
+              ) : (
+                logsList.map((log, idx) => {
+                  let badgeColor = 'text-blue-400 bg-blue-400/10 border-blue-400/20';
+                  if (log.type === 'warn') {
+                    badgeColor = 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20';
+                  } else if (log.type === 'error') {
+                    badgeColor = 'text-red-400 bg-red-400/10 border-red-400/20';
+                  }
+                  return (
+                    <div key={idx} className="flex gap-2 p-1.5 rounded bg-gray-900/60 border border-white/5">
+                      <span className="text-gray-500 shrink-0 select-none">{log.timestamp}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold border shrink-0 uppercase ${badgeColor}`}>
+                        {log.type}
+                      </span>
+                      <span className="text-gray-300 break-all whitespace-pre-wrap">{log.message}</span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

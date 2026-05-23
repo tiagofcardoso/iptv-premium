@@ -351,6 +351,8 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
   const { currentChannel, toggleFavorite, continueWatching, removeFromContinueWatching, tmdbApiKey } = useIPTVStore();
   const [selectedDetailChannel, setSelectedDetailChannel] = useState<Channel | null>(null);
 
+
+
   const continueWatchingMovies = useMemo(() => {
     return continueWatching.filter(item => item.contentType === 'movie');
   }, [continueWatching]);
@@ -373,6 +375,22 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
   // Navigation levels
   const [activeCategory, setActiveCategory] = useState<string | null>(null); // platform/group
   const [activeShow, setActiveShow] = useState<string | null>(null);         // series show name
+
+  // Estados e callbacks para Carregamento Progressivo (Lazy Loading)
+  const [visibleLimit, setVisibleLimit] = useState(60);
+
+  useEffect(() => {
+    setVisibleLimit(60);
+  }, [activeCategory, activeShow, search, section]);
+
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    // Dispara quando o utilizador está a menos de 300px do fundo do scroll
+    if (target.scrollHeight - target.scrollTop - target.clientHeight < 300) {
+      setVisibleLimit(prev => prev + 40);
+    }
+  }, []);
+
 
   // Channels for this section
   const sectionChannels = useMemo(() => channels.filter(c => {
@@ -583,7 +601,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
       )}
 
       {/* ── Content ── */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto" onScroll={handleScroll}>
 
         {/* ── Search results ── */}
         {search.trim() && (
@@ -598,7 +616,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
                 {activeShow
                   /* Episode list for the selected show within search */
                   ? null
-                  : searchShows.map(show => (
+                  : searchShows.slice(0, visibleLimit).map(show => (
                     <ShowCard
                       key={show.name}
                       name={show.name}
@@ -637,6 +655,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
                 <div className="divide-y divide-white/5 rounded-xl overflow-hidden">
                   {(searchShows.find(s => s.name === activeShow)?.episodes ?? [])
                     .sort((a, b) => ((a.seasonNum ?? 0) - (b.seasonNum ?? 0)) || ((a.episodeNum ?? 0) - (b.episodeNum ?? 0)))
+                    .slice(0, visibleLimit)
                     .map(ep => (
                       <EpisodeRow
                         key={ep.id}
@@ -654,7 +673,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
             {/* Live / Movies: flat list */}
             {!isSeries && (
               <div className={`grid gap-2 ${isLive ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7'}`}>
-                {searchResults.map(ch => isLive
+                {searchResults.slice(0, visibleLimit).map(ch => isLive
                   ? <LiveChannelRow key={ch.id} channel={ch} isActive={currentChannel?.id === ch.id} onSelect={() => onSelectChannel(ch)} onToggleFav={() => toggleFavorite(ch.id)} />
                   : <PosterCard key={ch.id} channel={ch} isActive={currentChannel?.id === ch.id} onSelect={() => setSelectedDetailChannel(ch)} onToggleFav={() => toggleFavorite(ch.id)} />
                 )}
@@ -681,7 +700,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
         {/* Live: Channel list inside category */}
         {!search.trim() && isLive && activeCategory && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 p-1">
-            {categoryChannels.map(ch => (
+            {categoryChannels.slice(0, visibleLimit).map(ch => (
               <LiveChannelRow
                 key={ch.id}
                 channel={ch}
@@ -756,7 +775,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
         {/* Series: Show cards within platform */}
         {!search.trim() && isSeries && activeCategory && !activeShow && (
           <div className="p-3 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-9 gap-2 sm:gap-3">
-            {showsInCategory.map(show => (
+            {showsInCategory.slice(0, visibleLimit).map(show => (
               <ShowCard
                 key={show.name}
                 name={show.name}
@@ -783,7 +802,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
         {/* Series: Episodes list */}
         {!search.trim() && isSeries && activeCategory && activeShow && (
           <div className="divide-y divide-white/5">
-            {episodesInShow.map(ep => (
+            {episodesInShow.slice(0, visibleLimit).map(ep => (
               <EpisodeRow
                 key={ep.id}
                 channel={ep}
@@ -1010,7 +1029,7 @@ interface CategoryRowProps { category: Category; currentChannelId: string | null
 const CategoryRow: React.FC<CategoryRowProps> = ({ category, currentChannelId, onSelect, onToggleFav }) => {
   const rowRef = useRef<HTMLDivElement>(null);
   const [showAll, setShowAll] = useState(false);
-  const limit = showAll ? category.channels.length : 20;
+  const limit = showAll ? Math.min(category.channels.length, 120) : 20;
   return (
     <div>
       <div className="flex items-center justify-between px-4 mb-3">
