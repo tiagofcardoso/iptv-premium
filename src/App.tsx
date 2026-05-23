@@ -269,6 +269,37 @@ function App() {
     }
   }, [showSidebar]);
 
+  // ── Auto-focus on screen transition ──────────────────────────────────────────
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (screen === 'home') {
+        const liveCard = document.getElementById('section-live');
+        if (liveCard) {
+          liveCard.focus();
+          return;
+        }
+      }
+      
+      if (screen === 'live' || screen === 'movies' || screen === 'series') {
+        const contentContainer = document.querySelector('.flex-1.overflow-y-auto');
+        if (contentContainer) {
+          const firstFocusable = contentContainer.querySelector('.focusable-tv') as HTMLElement | null;
+          if (firstFocusable) {
+            firstFocusable.focus();
+            return;
+          }
+        }
+        
+        const firstCandidate = document.querySelector('.focusable-tv') as HTMLElement | null;
+        if (firstCandidate) {
+          firstCandidate.focus();
+        }
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [screen, channels.length]);
+
   // ── Wake up proxy & auto-reload ───────────────────────────────────────────────
   useEffect(() => {
     const pingProxy = async () => {
@@ -413,13 +444,23 @@ function App() {
         )}
 
         {/* ── Content Browser (Live / Movies / Series) ── */}
-        {(screen === 'live' || screen === 'movies' || screen === 'series') && (
-          <ContentBrowser
-            section={screen}
-            channels={channels}
-            onBack={navigateBack}
-            onSelectChannel={handleSelectChannel}
-          />
+        {(screen === 'live' || screen === 'movies' || screen === 'series' || (screen === 'player' && currentChannel)) && (
+          <div className={screen === 'player' ? 'hidden' : 'flex-1 flex flex-col overflow-hidden'}>
+            <ContentBrowser
+              section={
+                screen === 'player'
+                  ? (currentChannel?.contentType === 'movie'
+                      ? 'movies'
+                      : currentChannel?.contentType === 'series'
+                      ? 'series'
+                      : 'live')
+                  : (screen as 'live' | 'movies' | 'series')
+              }
+              channels={channels}
+              onBack={navigateBack}
+              onSelectChannel={handleSelectChannel}
+            />
+          </div>
         )}
 
         {/* ── Player screen ── */}

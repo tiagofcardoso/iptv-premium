@@ -645,7 +645,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
               <>
                 <button
                   onClick={() => setActiveShow(null)}
-                  className="flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-300 mb-3 transition-colors"
+                  className="focusable-tv flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-300 mb-3 transition-colors focus:outline-none focus:text-violet-300"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -1035,7 +1035,10 @@ const CategoryRow: React.FC<CategoryRowProps> = ({ category, currentChannelId, o
       <div className="flex items-center justify-between px-4 mb-3">
         <h2 className="text-white font-semibold text-sm">{category.name}</h2>
         {category.channels.length > 10 && (
-          <button onClick={() => setShowAll(s => !s)} className="flex items-center gap-1 text-xs text-gray-500 hover:text-violet-400 transition-colors">
+          <button
+            onClick={() => setShowAll(s => !s)}
+            className="focusable-tv flex items-center gap-1 text-xs text-gray-500 hover:text-violet-400 transition-colors focus:outline-none focus:text-violet-400"
+          >
             <span>{showAll ? 'Menos' : `${category.channels.length} | Mais`}</span>
             <ChevronRight className="w-3 h-3" />
           </button>
@@ -1160,7 +1163,10 @@ const ContinueWatchingRow: React.FC<ContinueWatchingRowProps> = ({ items, curren
       <div className="flex items-center justify-between px-4 mb-3">
         <h2 className="text-white font-semibold text-sm">🔄 Continue Assistindo</h2>
         {items.length > 10 && (
-          <button onClick={() => setShowAll(s => !s)} className="flex items-center gap-1 text-xs text-gray-500 hover:text-violet-400 transition-colors">
+          <button
+            onClick={() => setShowAll(s => !s)}
+            className="focusable-tv flex items-center gap-1 text-xs text-gray-500 hover:text-violet-400 transition-colors focus:outline-none focus:text-violet-400"
+          >
             <span>{showAll ? 'Menos' : `${items.length} | Mais`}</span>
             <ChevronRight className="w-3 h-3" />
           </button>
