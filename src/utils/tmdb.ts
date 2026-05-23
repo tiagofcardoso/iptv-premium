@@ -98,7 +98,7 @@ export async function getTMDBMetadata(
   }
 
   // Use provided key, or fallback to the default key
-  const activeKey = apiKey?.trim() || 'bda5462cf1923e25ed4bdfd6b1d4b6dd';
+  const activeKey = apiKey?.trim() || '7de069975588ac8f935af558ce60c134';
 
   try {
     // 1. Search TMDB
