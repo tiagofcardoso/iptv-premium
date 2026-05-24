@@ -399,10 +399,31 @@ function App() {
   // ── Playlist context for prev/next in player ──────────────────────────────────
   const sectionChannels = useMemo(() => {
     if (screen !== 'player' || !currentChannel) return [];
-    if (currentChannel.contentType === 'movie') return movieChannels;
-    if (currentChannel.contentType === 'series') return seriesChannels;
-    return liveChannels;
-  }, [screen, currentChannel, liveChannels, movieChannels, seriesChannels]);
+    
+    // 1. Live TV: use channels of the active category
+    if (currentChannel.contentType === 'live' || currentChannel.contentType == null) {
+      const activeCat = useIPTVStore.getState().activeCategory;
+      if (activeCat) {
+        if (activeCat === '__FAVORITOS__') {
+          return useIPTVStore.getState().favoriteList.filter(c => c.contentType === 'live' || !c.contentType);
+        }
+        const cat = useIPTVStore.getState().liveCategories.find(c => c.name === activeCat);
+        if (cat) return cat.channels;
+      }
+      return liveChannels; // fallback to all live
+    }
+    
+    // 2. Series: use episodes of the active show
+    if (currentChannel.contentType === 'series') {
+      const showName = currentChannel.seriesName ?? currentChannel.name;
+      return seriesChannels
+        .filter(c => (c.seriesName ?? c.name) === showName)
+        .sort((a, b) => ((a.seasonNum ?? 0) - (b.seasonNum ?? 0)) || ((a.episodeNum ?? 0) - (b.episodeNum ?? 0)));
+    }
+    
+    // 3. Movies: no zapping needed, return empty list
+    return [];
+  }, [screen, currentChannel, liveChannels, seriesChannels]);
   const currentIsLive = currentChannel?.contentType === 'live' || currentChannel?.contentType == null;
 
   const handleNavigateChannel = useCallback((id: string) => {
@@ -460,7 +481,6 @@ function App() {
                       : 'live')
                   : (screen as 'live' | 'movies' | 'series')
               }
-              channels={channels}
               onBack={navigateBack}
               onSelectChannel={handleSelectChannel}
             />

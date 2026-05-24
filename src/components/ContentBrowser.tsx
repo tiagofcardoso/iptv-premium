@@ -7,7 +7,6 @@ import DetailModal from './DetailModal.tsx';
 
 interface ContentBrowserProps {
   section: 'live' | 'movies' | 'series';
-  channels: Channel[];
   onBack: () => void;
   onSelectChannel: (channel: Channel) => void;
 }
@@ -346,12 +345,13 @@ function mostCommonLogo(channels: Channel[]): string {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ContentBrowser: React.FC<ContentBrowserProps> = ({
-  section, channels, onBack, onSelectChannel,
+  section, onBack, onSelectChannel,
 }) => {
   const {
     currentChannel, toggleFavorite, continueWatching, removeFromContinueWatching, tmdbApiKey,
     liveChannels, movieChannels, seriesChannels,
-    liveCategories, movieCategories, seriesCategories
+    liveCategories, movieCategories, seriesCategories,
+    idMap
   } = useIPTVStore();
   const [selectedDetailChannel, setSelectedDetailChannel] = useState<Channel | null>(null);
 
@@ -873,7 +873,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
       {selectedDetailChannel && (
         <DetailModal
           channel={selectedDetailChannel}
-          allChannels={channels}
+          allChannels={selectedDetailChannel.contentType === 'series' ? seriesChannels : []}
           tmdbApiKey={tmdbApiKey}
           onClose={() => setSelectedDetailChannel(null)}
           onPlay={(ch) => {
@@ -881,7 +881,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
             onSelectChannel(ch);
           }}
           onToggleFavorite={(id) => toggleFavorite(id)}
-          isFavorite={channels.find(c => c.id === selectedDetailChannel.id)?.isFavorite ?? false}
+          isFavorite={idMap[selectedDetailChannel.id]?.isFavorite ?? false}
         />
       )}
       </div>
