@@ -175,11 +175,11 @@ export async function fetchM3U(url: string): Promise<Channel[]> {
   let response: Response;
   try {
     const proxied = proxyM3uUrl(url);
-    response = await fetch(proxied);
+    response = await fetch(proxied, { signal: AbortSignal.timeout(30_000) });
   } catch {
     // Fallback to corsproxy.io if our proxy is unreachable
     const proxied = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-    response = await fetch(proxied);
+    response = await fetch(proxied, { signal: AbortSignal.timeout(30_000) });
   }
 
   if (!response.ok) {

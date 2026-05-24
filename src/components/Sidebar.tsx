@@ -99,6 +99,12 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Guard: files >50MB would block the main thread on Android TV WebViews
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    if (file.size > MAX_FILE_SIZE) {
+      setError(`Ficheiro demasiado grande (${(file.size / 1024 / 1024).toFixed(0)}MB). Máximo permitido: 50MB.`);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
@@ -107,6 +113,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
       setChannels(parsed, `file://${file.name}`);
       setView('categories');
     };
+    reader.onerror = () => setError('Erro ao ler o ficheiro. Tenta novamente.');
     reader.readAsText(file);
   };
 

@@ -11,6 +11,7 @@ export interface TMDBMetadata {
 
 // Memory and LocalStorage caching
 const CACHE_KEY = 'iptv-tmdb-cache-v1';
+const MAX_CACHE_ENTRIES = 300; // Prevent localStorage overflow on low-memory Android TV devices
 let tmdbCache: Record<string, TMDBMetadata> = {};
 
 try {
@@ -23,10 +24,21 @@ try {
 }
 
 function saveCache() {
+  // Evict oldest entries if cache is too large (FIFO eviction)
+  const keys = Object.keys(tmdbCache);
+  if (keys.length > MAX_CACHE_ENTRIES) {
+    const toEvict = keys.slice(0, keys.length - MAX_CACHE_ENTRIES + 100);
+    for (const k of toEvict) delete tmdbCache[k];
+  }
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify(tmdbCache));
   } catch (e) {
-    console.warn('TMDB Cache write failed (likely quota limit exceeded):', e);
+    // If storage is still full, clear the entire TMDB cache and retry
+    console.warn('TMDB Cache write failed — clearing and retrying:', e);
+    try {
+      tmdbCache = {};
+      localStorage.removeItem(CACHE_KEY);
+    } catch { /* ignore */ }
   }
 }
 

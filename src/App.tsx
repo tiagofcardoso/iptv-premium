@@ -214,27 +214,43 @@ function App() {
           y: rect.top + rect.height / 2
         };
 
-        const dx = center.x - activeCenter.x;
-        const dy = center.y - activeCenter.y;
+        const centerDx = center.x - activeCenter.x;
+        const centerDy = center.y - activeCenter.y;
+
+        // Calculate edge-to-edge gaps
+        const gapX = rect.left > activeRect.right
+          ? rect.left - activeRect.right
+          : (activeRect.left > rect.right ? activeRect.left - rect.right : 0);
+
+        const gapY = rect.top > activeRect.bottom
+          ? rect.top - activeRect.bottom
+          : (activeRect.top > rect.bottom ? activeRect.top - rect.bottom : 0);
 
         let isCorrectDirection = false;
         let distance = 0;
 
+        // Linear tie-breaker to prefer elements that align better center-to-center
+        const tieBreaker = Math.abs(centerDx) + Math.abs(centerDy);
+
         // Threshold of 5px to account for slight misalignment or line offsets
         if (e.key === 'ArrowDown') {
           isCorrectDirection = rect.top >= activeRect.top + 5;
-          // Heavily penalize horizontal drift to prefer exact columns below
-          distance = dy * dy + 4 * dx * dx;
+          // Primary: vertical gap + penalized horizontal gap. Secondary: tie-breaker
+          const primary = gapY * gapY + 4 * gapX * gapX;
+          distance = primary + 0.001 * tieBreaker;
         } else if (e.key === 'ArrowUp') {
           isCorrectDirection = rect.bottom <= activeRect.bottom - 5;
-          distance = dy * dy + 4 * dx * dx;
+          const primary = gapY * gapY + 4 * gapX * gapX;
+          distance = primary + 0.001 * tieBreaker;
         } else if (e.key === 'ArrowLeft') {
           isCorrectDirection = rect.right <= activeRect.right - 5;
-          // Heavily penalize vertical drift to prefer exact rows to the left
-          distance = 4 * dy * dy + dx * dx;
+          // Primary: penalized vertical gap + horizontal gap. Secondary: tie-breaker
+          const primary = 4 * gapY * gapY + gapX * gapX;
+          distance = primary + 0.001 * tieBreaker;
         } else if (e.key === 'ArrowRight') {
           isCorrectDirection = rect.left >= activeRect.left + 5;
-          distance = 4 * dy * dy + dx * dx;
+          const primary = 4 * gapY * gapY + gapX * gapX;
+          distance = primary + 0.001 * tieBreaker;
         }
 
         if (isCorrectDirection && distance < minDistance) {
@@ -313,13 +329,13 @@ function App() {
     };
 
     pingProxy().then(() => {
+      // Only auto-reload if no channels are loaded yet (first launch or after clearPlaylist)
       if (playlistUrl && channels.length === 0) {
         setAutoLoading(true);
         const favIds = getPersistedFavoriteIds();
         fetchM3U(playlistUrl)
           .then(parsed => {
             const withFavs = parsed.map(c => ({ ...c, isFavorite: favIds.has(c.id) }));
-            // Debug: log content type breakdown
             const counts = withFavs.reduce((acc, c) => {
               acc[c.contentType ?? 'live'] = (acc[c.contentType ?? 'live'] ?? 0) + 1;
               return acc;
@@ -332,21 +348,6 @@ function App() {
             console.error('[IPTV] Auto-reload failed:', err);
             setAutoLoading(false);
           });
-      } else if (playlistUrl && channels.length > 0) {
-        // Migration: re-parse with updated content type logic
-        const favIds = getPersistedFavoriteIds();
-        fetchM3U(playlistUrl)
-          .then(reparsed => {
-            const withFavs = reparsed.map(c => ({ ...c, isFavorite: favIds.has(c.id) }));
-            const counts = withFavs.reduce((acc, c) => {
-              acc[c.contentType ?? 'live'] = (acc[c.contentType ?? 'live'] ?? 0) + 1;
-              return acc;
-            }, {} as Record<string, number>);
-            console.log('[IPTV] Re-parsed content types:', counts);
-            setChannels(withFavs, playlistUrl);
-            setLastUpdated(new Date().toLocaleString('pt-PT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }));
-          })
-          .catch(() => { /* silently skip */ });
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

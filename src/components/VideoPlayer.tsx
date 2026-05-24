@@ -25,8 +25,17 @@ export interface VideoPlayerHandle {
   requestFullscreen: () => void;
 }
 
-function detectStreamType(url: string): 'hls' | 'direct' {
+function detectStreamType(url: string, isVOD = false): 'hls' | 'direct' {
   const lower = url.toLowerCase().split('?')[0];
+
+  // Xtream Codes VOD paths are NEVER HLS — always direct MP4/MKV streams
+  // Even URLs without a file extension (e.g. /movie/user/pass/12345) are direct
+  if (lower.includes('/movie/') || lower.includes('/series/')) return 'direct';
+
+  // Generic hint from the caller: if marked as VOD, prefer direct
+  if (isVOD) return 'direct';
+
+  // Known direct video file extensions
   if (
     lower.endsWith('.mp4') ||
     lower.endsWith('.mkv') ||
@@ -36,8 +45,18 @@ function detectStreamType(url: string): 'hls' | 'direct' {
     lower.endsWith('.flv') ||
     lower.endsWith('.ts')
   ) return 'direct';
+
   return 'hls';
 }
+
+/** Returns true for container formats Android WebView may not decode natively */
+function isMaybeUnsupportedContainer(url: string): boolean {
+  const lower = url.toLowerCase().split('?')[0];
+  return lower.endsWith('.mkv') || lower.endsWith('.avi') || lower.endsWith('.wmv');
+}
+
+const LOAD_TIMEOUT_LIVE_MS = 15_000; // 15s — fast feedback for live streams
+const LOAD_TIMEOUT_VOD_MS  = 25_000; // 25s — movies/series buffer slower
 
 function formatTime(seconds: number): string {
   if (isNaN(seconds) || seconds === Infinity || seconds < 0) return '00:00';
@@ -51,7 +70,7 @@ function formatTime(seconds: number): string {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
-const LOAD_TIMEOUT_MS = 15000; // reduced from 20s for faster feedback
+
 
 const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
   ({ url, playlist = [], currentId, onNavigate, isLive = false, onControlsVisibleChange }, ref) => {
@@ -63,6 +82,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
   const fullscreenTriggered = useRef(false);
   const lastSaveTimeRef = useRef<number | null>(null);
   const hasResumedRef = useRef<string | null>(null);
+  const rafRef = useRef<number | null>(null); // RAF handle for timeupdate throttle
+  // Cleanup refs for native video event listeners (prevent memory leaks)
+  const nativeErrorListenerRef = useRef<(() => void) | null>(null);
+  const nativeReadyListenerRef = useRef<(() => void) | null>(null);
 
   const attemptResume = useCallback((video: HTMLVideoElement) => {
     if (isLive || !currentId) return;
@@ -148,11 +171,25 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
   };
 
+  // Remove any lingering native video element listeners (avoid memory leaks)
+  const removeNativeListeners = (video: HTMLVideoElement) => {
+    if (nativeErrorListenerRef.current) {
+      video.removeEventListener('error', nativeErrorListenerRef.current);
+      nativeErrorListenerRef.current = null;
+    }
+    if (nativeReadyListenerRef.current) {
+      video.removeEventListener('loadedmetadata', nativeReadyListenerRef.current);
+      video.removeEventListener('loadeddata',     nativeReadyListenerRef.current);
+      video.removeEventListener('canplay',        nativeReadyListenerRef.current);
+      nativeReadyListenerRef.current = null;
+    }
+  };
+
   const clearLoadTimeout = () => {
     if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
   };
 
-  const startLoadTimeout = () => {
+  const startLoadTimeout = (ms = LOAD_TIMEOUT_LIVE_MS) => {
     clearLoadTimeout();
     timeoutRef.current = setTimeout(() => {
       if (currentUrlRef.current) {
@@ -160,6 +197,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         if (video) {
           destroyHls();
           setStatus('loading');
+          // Remove stale listeners before retrying
+          removeNativeListeners(video);
           video.src = proxyUrl(currentUrlRef.current);
           video.load();
           video.play()
@@ -170,7 +209,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             });
         }
       }
-    }, LOAD_TIMEOUT_MS);
+    }, ms);
+
   };
 
   const showError = (msg: string) => {
@@ -276,8 +316,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     setCurrentTime(0);
     setDuration(0);
 
-    const streamType = detectStreamType(streamUrl);
+    const streamType = detectStreamType(streamUrl, !isLive);
     const proxied = proxyUrl(streamUrl);
+    // Timeout is longer for VOD since large files take more time to buffer
+    const loadTimeoutMs = isLive ? LOAD_TIMEOUT_LIVE_MS : LOAD_TIMEOUT_VOD_MS;
 
     const onReady = () => {
       clearLoadTimeout();
@@ -323,7 +365,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       hlsRef.current = hls;
       hls.loadSource(proxied);
       hls.attachMedia(video);
-      startLoadTimeout();
+      startLoadTimeout(loadTimeoutMs);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         onReady();
@@ -349,55 +391,114 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
 
         destroyHls();
         clearLoadTimeout();
+        // IMPORTANT: must set src + load before play() or Android TV WebView rejects it
         video.src = proxied;
         video.load();
         video.play()
           .then(() => { setStatus('playing'); goFullscreen(); })
-          .catch(() =>
+          .catch((playErr) => {
+            const errMsg = (playErr as Error)?.message || '';
             showError(
               httpStatus === 403
                 ? 'Acesso negado (403). O stream pode ser geo-bloqueado.'
                 : httpStatus === 404
                 ? 'Stream não encontrado (404). Canal offline.'
+                : errMsg.toLowerCase().includes('not supported')
+                ? 'Formato de vídeo não suportado por este dispositivo.'
                 : 'Sinal indisponível. Não foi possível carregar o stream.'
-            )
-          );
+            );
+          });
       });
 
-    // ── Native HLS (Safari / iOS) ────────────────────────────────────────────
+    // ── Native HLS (Safari / iOS) ──────────────────────────────────────────
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       const handleLoadedMetadata = () => { onReady(); };
-      
-      video.addEventListener('error', () =>
-        showError('Stream indisponível. A fonte pode estar offline ou bloqueada.')
-      , { once: true });
-      
+      let usingProxyFallback = false;
+
+      const handleNativeError = () => {
+        if (!usingProxyFallback) {
+          usingProxyFallback = true;
+          console.warn('[Player] Native HLS failed. Trying proxy fallback...');
+          video.src = proxied;
+          video.load();
+          return;
+        }
+        showError('Stream indisponível. A fonte pode estar offline ou bloqueada.');
+      };
+
+      nativeReadyListenerRef.current = handleLoadedMetadata;
+      nativeErrorListenerRef.current = handleNativeError;
+      video.addEventListener('error', handleNativeError, { once: true });
+
       if (video.readyState >= 1) {
         handleLoadedMetadata();
       } else {
         video.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
       }
-      
-      video.src = proxied;
-      startLoadTimeout();
 
-    // ── Direct <video> fallback ──────────────────────────────────────────────
-    } else {
-      const handleCanPlay = () => { onReady(); };
-      
-      video.addEventListener('error', () =>
-        showError('Stream indisponível. Formato não suportado ou canal offline.')
-      , { once: true });
-      
-      if (video.readyState >= 3) {
-        handleCanPlay();
-      } else {
-        video.addEventListener('canplay', handleCanPlay, { once: true });
-      }
-      
-      video.src = proxied;
+      // Try raw URL directly first to avoid proxy bottleneck
+      video.src = streamUrl;
       video.load();
-      startLoadTimeout();
+      startLoadTimeout(loadTimeoutMs);
+
+    // ── Direct <video> (VOD: Xtream Codes /movie/, /series/, or known ext) ───────────
+    } else {
+      let readyFired = false;
+      let usingProxyFallback = false;
+
+      const handleVodReady = () => {
+        if (readyFired) return;
+        readyFired = true;
+        // Remove sibling listeners to avoid double-calling onReady
+        video.removeEventListener('loadeddata',     handleVodReady);
+        video.removeEventListener('canplay',        handleVodReady);
+        video.removeEventListener('loadedmetadata', handleVodReady);
+        onReady();
+      };
+
+      const handleVodError = (e: Event) => {
+        if (readyFired) return;
+
+        // If direct stream fails, fall back to proxied URL
+        if (!usingProxyFallback) {
+          usingProxyFallback = true;
+          console.warn('[Player] Direct playback failed. Trying proxy fallback...');
+          video.src = proxied;
+          video.load();
+          return;
+        }
+
+        readyFired = true;
+        video.removeEventListener('loadeddata',     handleVodReady);
+        video.removeEventListener('canplay',        handleVodReady);
+        video.removeEventListener('loadedmetadata', handleVodReady);
+
+        const mediaErr = (e.target as HTMLVideoElement).error;
+        const isCodecErr =
+          mediaErr?.code === MediaError.MEDIA_ERR_DECODE ||
+          mediaErr?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED;
+
+        showError(
+          isCodecErr || isMaybeUnsupportedContainer(streamUrl)
+            ? 'Formato não suportado neste dispositivo. Tenta outro título ou qualidade inferior.'
+            : 'Stream indisponível. Formato ou canal offline.'
+        );
+      };
+
+      // Track refs for cleanup
+      nativeReadyListenerRef.current = handleVodReady;
+      nativeErrorListenerRef.current = handleVodError as () => void;
+
+      // Attach all events BEFORE setting src
+      video.addEventListener('loadeddata',     handleVodReady, { once: true });
+      video.addEventListener('canplay',        handleVodReady, { once: true });
+      video.addEventListener('loadedmetadata', handleVodReady, { once: true });
+      video.addEventListener('error',          handleVodError, { once: true });
+
+      // Try the raw URL directly to bypass the proxy bottleneck and avoid stuttering/buffering
+      video.src = streamUrl;
+      video.load();
+      startLoadTimeout(loadTimeoutMs);
     }
   };
 
@@ -405,8 +506,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     if (!url) { destroyHls(); clearLoadTimeout(); setStatus('idle'); return; }
     initPlayer(url);
     return () => {
-      // Save progress immediately on unmount/stream change before destroying
+      // Cancel any pending RAF to prevent stale timeupdate callbacks after unmount
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+
+      // Remove any lingering native video listeners before destroying
       const video = videoRef.current;
+      if (video) removeNativeListeners(video);
+
+      // Save progress immediately on unmount/stream change before destroying
       if (video) {
         if (!isLive && currentId && video.currentTime > 5) {
           const duration = video.duration;
@@ -449,30 +556,37 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const video = videoRef.current;
     if (!video) return;
 
-    setCurrentTime(video.currentTime);
-    if (video.duration) {
-      setDuration(video.duration);
-    }
+    // Throttle UI updates via requestAnimationFrame to prevent layout thrashing
+    // on Android TV WebViews (video fires timeupdate 4–30×/sec)
+    if (rafRef.current) return; // already have a pending frame
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      const v = videoRef.current;
+      if (!v) return;
 
-    if (isLive || !currentId) return;
+      setCurrentTime(v.currentTime);
+      if (v.duration) setDuration(v.duration);
 
-    const currentTimeVal = video.currentTime;
-    const durationVal = video.duration;
+      if (isLive || !currentId) return;
 
-    if (durationVal && durationVal > 0) {
-      if (currentTimeVal >= durationVal - 15) {
-        useIPTVStore.getState().removeFromContinueWatching(currentId);
-      } else if (currentTimeVal > 5) {
-        const now = Date.now();
-        if (!lastSaveTimeRef.current || now - lastSaveTimeRef.current > 2000) {
-          const currentChannel = useIPTVStore.getState().currentChannel;
-          if (currentChannel) {
-            useIPTVStore.getState().saveProgress(currentChannel, currentTimeVal, durationVal);
+      const currentTimeVal = v.currentTime;
+      const durationVal = v.duration;
+
+      if (durationVal && durationVal > 0) {
+        if (currentTimeVal >= durationVal - 15) {
+          useIPTVStore.getState().removeFromContinueWatching(currentId);
+        } else if (currentTimeVal > 5) {
+          const now = Date.now();
+          if (!lastSaveTimeRef.current || now - lastSaveTimeRef.current > 2000) {
+            const currentChannel = useIPTVStore.getState().currentChannel;
+            if (currentChannel) {
+              useIPTVStore.getState().saveProgress(currentChannel, currentTimeVal, durationVal);
+            }
+            lastSaveTimeRef.current = now;
           }
-          lastSaveTimeRef.current = now;
         }
       }
-    }
+    });
   };
 
   return (

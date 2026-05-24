@@ -1098,14 +1098,14 @@ const CategoryRow: React.FC<CategoryRowProps> = ({ category, currentChannelId, o
         tabIndex={category.channels.length > 10 ? 0 : -1}
         onClick={() => { if (category.channels.length > 10 && onHeaderClick) onHeaderClick(); }}
         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (category.channels.length > 10 && onHeaderClick) onHeaderClick(); } }}
-        className={`flex items-center justify-between px-4 py-1.5 mx-2 rounded-xl transition-all text-left focus:outline-none ${
+        className={`flex items-center justify-between px-4 py-1.5 mx-2 rounded-xl transition-all text-left focus:outline-none group ${
           category.channels.length > 10
-            ? 'focusable-tv hover:bg-white/5 focus:bg-white/10 cursor-pointer'
+            ? 'focusable-tv hover:bg-white/5 focus:bg-white/5 focus:ring-2 focus:ring-violet-500 cursor-pointer'
             : ''
         }`}
       >
         <div className="flex items-center gap-2">
-          <h2 className="text-white font-semibold text-sm">{category.name}</h2>
+          <h2 className="text-white font-semibold text-sm group-hover:text-violet-300 group-focus:text-violet-300 transition-colors">{category.name}</h2>
           {category.channels.length > 10 && (
             <span className="text-[10px] bg-violet-600/35 text-violet-300 px-1.5 py-0.5 rounded-full font-bold">
               {category.channels.length}
@@ -1113,7 +1113,7 @@ const CategoryRow: React.FC<CategoryRowProps> = ({ category, currentChannelId, o
           )}
         </div>
         {category.channels.length > 10 && (
-          <div className="flex items-center gap-1 text-xs text-gray-500 group-hover:text-violet-300 transition-colors">
+          <div className="flex items-center gap-1 text-xs text-gray-500 group-hover:text-violet-300 group-focus:text-violet-300 transition-colors">
             <span>Ver todos</span>
             <ChevronRight className="w-3 h-3" />
           </div>

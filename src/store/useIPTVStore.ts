@@ -129,11 +129,15 @@ export const useIPTVStore = create<IPTVState>()(
       setAutoLoading: (v) => set({ isAutoLoading: v }),
 
       toggleFavorite: (channelId) => {
-        const { channels, liveChannels, movieChannels, seriesChannels, favoriteList, idMap } = get();
-        const item = idMap[channelId];
-        if (!item) return;
+        const { liveChannels, movieChannels, seriesChannels, favoriteList, idMap } = get();
+        const original = idMap[channelId];
+        if (!original) return;
 
-        item.isFavorite = !item.isFavorite;
+        // IMPORTANT: create a NEW object — never mutate directly inside Zustand
+        const item = { ...original, isFavorite: !original.isFavorite };
+
+        // Update idMap with the new object
+        const newIdMap = { ...idMap, [channelId]: item };
 
         let updatedFavs = [...favoriteList];
         if (item.isFavorite) {
@@ -144,18 +148,19 @@ export const useIPTVStore = create<IPTVState>()(
           updatedFavs = updatedFavs.filter(c => c.id !== channelId);
         }
 
+        // Replace only the affected channel in each sub-list via map (O(n) but unavoidable)
+        const replace = (list: Channel[]) =>
+          list.map(c => (c.id === channelId ? item : c));
+
         set({
-          channels: [...channels],
-          liveChannels: [...liveChannels],
-          movieChannels: [...movieChannels],
-          seriesChannels: [...seriesChannels],
+          idMap: newIdMap,
+          liveChannels: replace(liveChannels),
+          movieChannels: replace(movieChannels),
+          seriesChannels: replace(seriesChannels),
           favoriteList: updatedFavs,
-          liveCategories: [...get().liveCategories],
-          movieCategories: [...get().movieCategories],
-          seriesCategories: [...get().seriesCategories],
           currentChannel:
             get().currentChannel?.id === channelId
-              ? { ...get().currentChannel!, isFavorite: item.isFavorite }
+              ? item
               : get().currentChannel,
         });
       },

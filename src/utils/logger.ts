@@ -20,38 +20,74 @@ try {
 
 const listeners = new Set<() => void>();
 
-async function saveLogsToFile() {
+// ── File-save state ───────────────────────────────────────────────────────────
+let fileSaveEnabled = false;   // only enabled after permission is granted
+let fileSavePending = false;   // debounce: avoid writing while a write is in progress
+let fileSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Request storage permission once, then enable file saving */
+async function requestAndEnableFileSave() {
+  try {
+    const result = await Filesystem.requestPermissions();
+    if (result.publicStorage === 'granted') {
+      fileSaveEnabled = true;
+      // Write accumulated logs now that we have permission
+      scheduleSaveToFile();
+    }
+    // If denied, we silently keep only localStorage logging
+  } catch {
+    // Permission API not available (web / older Android) — no-op
+  }
+}
+
+/** Debounced write: waits 3s of inactivity to batch writes together */
+function scheduleSaveToFile() {
+  if (!fileSaveEnabled) return;
+  if (fileSaveTimer) clearTimeout(fileSaveTimer);
+  fileSaveTimer = setTimeout(() => {
+    fileSaveTimer = null;
+    performSaveToFile();
+  }, 3000); // 3-second debounce — prevents thrashing on rapid log bursts
+}
+
+async function performSaveToFile() {
+  if (fileSavePending) return; // already writing
+  fileSavePending = true;
   try {
     const text = logs
       .map(l => `[${l.timestamp}] [${l.type.toUpperCase()}] ${l.message}`)
       .join('\n');
 
-    // 1. Try public Download folder on ExternalStorage
+    // Try public Downloads folder
     await Filesystem.writeFile({
       path: 'Download/iptv-diagnostics.txt',
       data: text,
       directory: Directory.ExternalStorage,
       encoding: Encoding.UTF8,
-      recursive: true
+      recursive: true,
     });
-  } catch (err) {
+  } catch {
+    // Fallback to app-private Documents (no permission needed)
     try {
       const text = logs
         .map(l => `[${l.timestamp}] [${l.type.toUpperCase()}] ${l.message}`)
         .join('\n');
-
-      // 2. Fallback to App Documents folder
       await Filesystem.writeFile({
         path: 'iptv-diagnostics.txt',
         data: text,
         directory: Directory.Documents,
         encoding: Encoding.UTF8,
-        recursive: true
+        recursive: true,
       });
-    } catch {}
+    } catch {
+      // Both failed — logging continues in localStorage only
+    }
+  } finally {
+    fileSavePending = false;
   }
 }
 
+// ── Console interception ──────────────────────────────────────────────────────
 const originalConsoleError = console.error;
 const originalConsoleWarn = console.warn;
 const originalConsoleLog = console.log;
@@ -62,7 +98,7 @@ function formatMessage(args: any[]): string {
       if (arg instanceof Error) {
         return `${arg.message}\n${arg.stack || ''}`;
       }
-      if (typeof arg === 'object') {
+      if (typeof arg === 'object' && arg !== null) {
         try {
           return JSON.stringify(arg);
         } catch {
@@ -74,30 +110,46 @@ function formatMessage(args: any[]): string {
     .join(' ');
 }
 
+// ── Guard: prevent recursive logging when the error handler itself errors ──────
+let isLogging = false;
+
 export const logger = {
   addLog(type: LogEntry['type'], ...args: any[]) {
-    const message = formatMessage(args);
-    const timestamp = new Date().toLocaleTimeString('pt-PT', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
+    if (isLogging) return; // prevent recursive calls
+    isLogging = true;
 
-    logs.unshift({ timestamp, type, message });
-
-    if (logs.length > MAX_LOGS) {
-      logs = logs.slice(0, MAX_LOGS);
-    }
-
-    // Save to localStorage
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
-    } catch {}
+      const message = formatMessage(args);
+      const timestamp = new Date().toLocaleTimeString('pt-PT', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
 
-    // Save to file
-    saveLogsToFile();
+      logs.unshift({ timestamp, type, message });
 
-    listeners.forEach(fn => fn());
+      if (logs.length > MAX_LOGS) {
+        logs = logs.slice(0, MAX_LOGS);
+      }
+
+      // Save to localStorage (fast, synchronous, no permissions needed)
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
+      } catch {
+        // localStorage full — remove old logs and retry once
+        try {
+          logs = logs.slice(0, 50);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
+        } catch {}
+      }
+
+      // Schedule file save (debounced, only if permitted)
+      scheduleSaveToFile();
+
+      listeners.forEach(fn => fn());
+    } finally {
+      isLogging = false;
+    }
   },
 
   getLogs(): LogEntry[] {
@@ -106,10 +158,8 @@ export const logger = {
 
   clear() {
     logs = [];
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {}
-    saveLogsToFile();
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    scheduleSaveToFile();
     listeners.forEach(fn => fn());
   },
 
@@ -133,7 +183,7 @@ export const logger = {
       logger.addLog('warn', ...args);
     };
 
-    // Intercept console.log (only for specific IPTV-related markers to avoid bloating)
+    // Intercept console.log (only IPTV/Player markers to avoid noise)
     console.log = (...args: any[]) => {
       originalConsoleLog.apply(console, args);
       const msg = formatMessage(args);
@@ -142,24 +192,42 @@ export const logger = {
       }
     };
 
-    // Global Javascript errors
+    // Global JS errors — log the full stack
     window.onerror = (message, source, lineno, colno, error) => {
+      const src = source ? source.split('/').pop() : 'unknown'; // short filename
       logger.addLog(
         'error',
-        `Erro global: ${message} em ${source}:${lineno}:${colno}`,
-        error || ''
+        `[GlobalError] ${message} @ ${src}:${lineno}:${colno}`,
+        error?.stack ? `\nStack: ${error.stack}` : ''
       );
-      return false; // let it propagate to browser console
+      return false;
     };
 
-    // Unhandled promise rejections (very common in network fetches/video loads)
-    window.onunhandledrejection = (event) => {
+    // Unhandled promise rejections — log reason + stack
+    window.addEventListener('unhandledrejection', (event) => {
+      const reason = event.reason;
+      // Suppress noisy "user denied permissions" / fullscreen rejection noise
+      const msg = reason?.message || String(reason) || 'Erro desconhecido';
+
+      // Skip logging permission denials as errors (they are expected)
+      if (msg.toLowerCase().includes('permissions check failed') ||
+          msg.toLowerCase().includes('permission denied') ||
+          msg.toLowerCase().includes('notallowederror')) {
+        logger.addLog('warn', `[Permission] ${msg} — verifique as permissões da app`);
+        return;
+      }
+
       logger.addLog(
         'error',
-        `Rejeição não tratada: ${event.reason?.message || event.reason || 'Erro desconhecido'}`
+        `[UnhandledRejection] ${msg}`,
+        reason?.stack ? `\nStack: ${reason.stack}` : ''
       );
-    };
+    });
 
     logger.addLog('info', 'Logger de diagnóstico inicializado com sucesso.');
+
+    // Request storage permission AFTER a short delay (non-blocking)
+    // This prevents blocking app startup and avoids the crash loop
+    setTimeout(() => requestAndEnableFileSave(), 2000);
   },
 };
