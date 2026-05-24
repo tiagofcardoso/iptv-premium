@@ -378,9 +378,11 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
 
   // Estados e callbacks para Carregamento Progressivo (Lazy Loading)
   const [visibleLimit, setVisibleLimit] = useState(60);
+  const [visibleCategoriesLimit, setVisibleCategoriesLimit] = useState(8);
 
   useEffect(() => {
     setVisibleLimit(60);
+    setVisibleCategoriesLimit(8);
   }, [activeCategory, activeShow, search, section]);
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -388,6 +390,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
     // Dispara quando o utilizador está a menos de 300px do fundo do scroll
     if (target.scrollHeight - target.scrollTop - target.clientHeight < 300) {
       setVisibleLimit(prev => prev + 40);
+      setVisibleCategoriesLimit(prev => prev + 6);
     }
   }, []);
 
@@ -691,7 +694,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
             {favoriteChannels.length > 0 && (
               <FavCard count={favoriteChannels.length} onClick={() => setActiveCategory(FAVS_KEY)} />
             )}
-            {sectionCategories.map(cat => (
+            {sectionCategories.slice(0, visibleLimit).map(cat => (
               <CategoryFolderCard key={cat.name} name={cat.name} count={cat.channels.length} onClick={() => setActiveCategory(cat.name)} />
             ))}
           </div>
@@ -735,7 +738,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
                 onToggleFav={ch => toggleFavorite(ch.id)}
               />
             )}
-            {sectionCategories.map(cat => (
+            {sectionCategories.slice(0, visibleCategoriesLimit).map(cat => (
               <CategoryRow
                 key={cat.name}
                 category={cat}
@@ -765,7 +768,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
               {favoriteChannels.length > 0 && (
                 <FavCard count={favoriteChannels.length} onClick={() => setActiveCategory(FAVS_KEY)} />
               )}
-              {sectionCategories.map(cat => (
+              {sectionCategories.slice(0, visibleLimit).map(cat => (
                 <CategoryFolderCard key={cat.name} name={cat.name} count={cat.channels.length} onClick={() => setActiveCategory(cat.name)} />
               ))}
             </div>
@@ -1031,19 +1034,35 @@ const CategoryRow: React.FC<CategoryRowProps> = ({ category, currentChannelId, o
   const [showAll, setShowAll] = useState(false);
   const limit = showAll ? Math.min(category.channels.length, 120) : 20;
   return (
-    <div>
-      <div className="flex items-center justify-between px-4 mb-3">
-        <h2 className="text-white font-semibold text-sm">{category.name}</h2>
+    <div className="space-y-1">
+      {/* Unified Category Header - Focusable for TV spatial navigation */}
+      <div
+        role="button"
+        tabIndex={category.channels.length > 10 ? 0 : -1}
+        onClick={() => { if (category.channels.length > 10) setShowAll(s => !s); }}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (category.channels.length > 10) setShowAll(s => !s); } }}
+        className={`flex items-center justify-between px-4 py-1.5 mx-2 rounded-xl transition-all text-left focus:outline-none ${
+          category.channels.length > 10
+            ? 'focusable-tv hover:bg-white/5 focus:bg-white/10 cursor-pointer'
+            : ''
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          <h2 className="text-white font-semibold text-sm">{category.name}</h2>
+          {category.channels.length > 10 && (
+            <span className="text-[10px] bg-violet-600/35 text-violet-300 px-1.5 py-0.5 rounded-full font-bold">
+              {category.channels.length}
+            </span>
+          )}
+        </div>
         {category.channels.length > 10 && (
-          <button
-            onClick={() => setShowAll(s => !s)}
-            className="focusable-tv flex items-center gap-1 text-xs text-gray-500 hover:text-violet-400 transition-colors focus:outline-none focus:text-violet-400"
-          >
-            <span>{showAll ? 'Menos' : `${category.channels.length} | Mais`}</span>
-            <ChevronRight className="w-3 h-3" />
-          </button>
+          <div className="flex items-center gap-1 text-xs text-gray-500 group-hover:text-violet-300 transition-colors">
+            <span>{showAll ? 'Ver menos' : 'Ver todos'}</span>
+            <ChevronRight className={`w-3 h-3 transition-transform ${showAll ? 'rotate-90' : ''}`} />
+          </div>
         )}
       </div>
+
       <div ref={rowRef} className={showAll
         ? 'px-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2'
         : 'flex gap-2 px-4 overflow-x-auto scrollbar-thin pb-1'

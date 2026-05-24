@@ -31,6 +31,18 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [view, setView] = useState<SidebarView>('categories');
+  const [visibleLimit, setVisibleLimit] = useState(50);
+
+  useEffect(() => {
+    setVisibleLimit(50);
+  }, [activeCategory, view, searchQuery]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    if (target.scrollHeight - target.scrollTop - target.clientHeight < 200) {
+      setVisibleLimit(prev => prev + 50);
+    }
+  };
 
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [logsList, setLogsList] = useState<LogEntry[]>(logger.getLogs());
@@ -265,7 +277,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
         )}
 
         {/* Content area */}
-        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+        <div
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
+        >
 
           {/* Empty state */}
           {channels.length === 0 && (
@@ -353,11 +368,12 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
                   currentChannel={currentChannel}
                   onSelect={handleSelectChannel}
                   onToggleFav={toggleFavorite}
+                  visibleLimit={visibleLimit}
                 />
               ) : visibleChannels.length === 0 ? (
                 <p className="text-center text-gray-600 text-xs py-8">Nenhum canal encontrado</p>
               ) : (
-                visibleChannels.map(channel => (
+                visibleChannels.slice(0, visibleLimit).map(channel => (
                   <ChannelItem
                     key={channel.id}
                     channel={channel}
@@ -467,16 +483,17 @@ interface SeriesGroupedListProps {
   currentChannel: Channel | null;
   onSelect: (c: Channel) => void;
   onToggleFav: (id: string) => void;
+  visibleLimit: number;
 }
 
-const SeriesGroupedList: React.FC<SeriesGroupedListProps> = ({ groups, currentChannel, onSelect, onToggleFav }) => {
+const SeriesGroupedList: React.FC<SeriesGroupedListProps> = ({ groups, currentChannel, onSelect, onToggleFav, visibleLimit }) => {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggle = (name: string) =>
     setExpanded(prev => { const next = new Set(prev); next.has(name) ? next.delete(name) : next.add(name); return next; });
 
   return (
     <>
-      {Array.from(groups.entries()).map(([seriesName, episodes]) => {
+      {Array.from(groups.entries()).slice(0, visibleLimit).map(([seriesName, episodes]) => {
         const isExpanded = expanded.has(seriesName);
         const hasActive = episodes.some(e => e.id === currentChannel?.id);
         const logo = episodes[0]?.logo;
