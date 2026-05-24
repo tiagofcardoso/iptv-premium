@@ -1,3 +1,5 @@
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+
 export interface LogEntry {
   timestamp: string;
   type: 'info' | 'warn' | 'error';
@@ -5,8 +7,50 @@ export interface LogEntry {
 }
 
 const MAX_LOGS = 150;
+const STORAGE_KEY = 'iptv-diagnostics-logs';
 let logs: LogEntry[] = [];
+
+// Try to load logs from localStorage initially
+try {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) {
+    logs = JSON.parse(raw);
+  }
+} catch {}
+
 const listeners = new Set<() => void>();
+
+async function saveLogsToFile() {
+  try {
+    const text = logs
+      .map(l => `[${l.timestamp}] [${l.type.toUpperCase()}] ${l.message}`)
+      .join('\n');
+
+    // 1. Try public Download folder on ExternalStorage
+    await Filesystem.writeFile({
+      path: 'Download/iptv-diagnostics.txt',
+      data: text,
+      directory: Directory.ExternalStorage,
+      encoding: Encoding.UTF8,
+      recursive: true
+    });
+  } catch (err) {
+    try {
+      const text = logs
+        .map(l => `[${l.timestamp}] [${l.type.toUpperCase()}] ${l.message}`)
+        .join('\n');
+
+      // 2. Fallback to App Documents folder
+      await Filesystem.writeFile({
+        path: 'iptv-diagnostics.txt',
+        data: text,
+        directory: Directory.Documents,
+        encoding: Encoding.UTF8,
+        recursive: true
+      });
+    } catch {}
+  }
+}
 
 const originalConsoleError = console.error;
 const originalConsoleWarn = console.warn;
@@ -45,6 +89,14 @@ export const logger = {
       logs = logs.slice(0, MAX_LOGS);
     }
 
+    // Save to localStorage
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
+    } catch {}
+
+    // Save to file
+    saveLogsToFile();
+
     listeners.forEach(fn => fn());
   },
 
@@ -54,6 +106,10 @@ export const logger = {
 
   clear() {
     logs = [];
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+    saveLogsToFile();
     listeners.forEach(fn => fn());
   },
 
