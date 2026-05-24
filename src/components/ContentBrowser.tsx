@@ -348,7 +348,11 @@ function mostCommonLogo(channels: Channel[]): string {
 const ContentBrowser: React.FC<ContentBrowserProps> = ({
   section, channels, onBack, onSelectChannel,
 }) => {
-  const { currentChannel, toggleFavorite, continueWatching, removeFromContinueWatching, tmdbApiKey } = useIPTVStore();
+  const {
+    currentChannel, toggleFavorite, continueWatching, removeFromContinueWatching, tmdbApiKey,
+    liveChannels, movieChannels, seriesChannels,
+    liveCategories, movieCategories, seriesCategories
+  } = useIPTVStore();
   const [selectedDetailChannel, setSelectedDetailChannel] = useState<Channel | null>(null);
 
 
@@ -396,31 +400,42 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
 
 
   // Channels for this section
-  const sectionChannels = useMemo(() => channels.filter(c => {
-    if (section === 'live') return c.contentType === 'live' || !c.contentType;
-    if (section === 'movies') return c.contentType === 'movie';
-    return c.contentType === 'series';
-  }), [channels, section]);
+  const sectionChannels = useMemo(() => {
+    if (section === 'live') return liveChannels;
+    if (section === 'movies') return movieChannels;
+    return seriesChannels;
+  }, [section, liveChannels, movieChannels, seriesChannels]);
 
   // Categories (platforms/groups)
   const sectionCategories = useMemo(() => {
-    const map = new Map<string, Channel[]>();
-    for (const ch of sectionChannels) {
-      if (!map.has(ch.group)) map.set(ch.group, []);
-      map.get(ch.group)!.push(ch);
-    }
-    return Array.from(map.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([name, chs]) => ({ name, channels: chs }));
-  }, [sectionChannels]);
+    if (section === 'live') return liveCategories;
+    if (section === 'movies') return movieCategories;
+    return seriesCategories;
+  }, [section, liveCategories, movieCategories, seriesCategories]);
 
   // Favorites in this section
-  const favoriteChannels = useMemo(() => sectionChannels.filter(c => c.isFavorite), [sectionChannels]);
+  const favoriteChannels = useMemo(() => {
+    const list: Channel[] = [];
+    for (const c of sectionChannels) {
+      if (c.isFavorite) {
+        list.push(c);
+      }
+    }
+    return list;
+  }, [sectionChannels]);
 
   // Series within active category — grouped by show name
   const showsInCategory = useMemo(() => {
     if (section !== 'series' || !activeCategory) return [];
-    const src = activeCategory === FAVS_KEY ? favoriteChannels : sectionChannels.filter(c => c.group === activeCategory);
+    
+    let src: Channel[] = [];
+    if (activeCategory === FAVS_KEY) {
+      src = favoriteChannels;
+    } else {
+      const cat = sectionCategories.find(c => c.name === activeCategory);
+      src = cat ? cat.channels : [];
+    }
+
     const map = new Map<string, Channel[]>();
     for (const ch of src) {
       const key = ch.seriesName ?? ch.name;
@@ -435,30 +450,51 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
         logo: mostCommonLogo(eps),
         isFavorite: eps.some(e => e.isFavorite),
       }));
-  }, [section, activeCategory, sectionChannels, favoriteChannels]);
+  }, [section, activeCategory, sectionCategories, favoriteChannels]);
 
   // Episodes of active show
   const episodesInShow = useMemo(() => {
     if (!activeShow) return [];
-    return sectionChannels
-      .filter(c => (c.seriesName ?? c.name) === activeShow && (!activeCategory || activeCategory === FAVS_KEY || c.group === activeCategory))
-      .sort((a, b) => ((a.seasonNum ?? 0) - (b.seasonNum ?? 0)) || ((a.episodeNum ?? 0) - (b.episodeNum ?? 0)));
-  }, [activeShow, activeCategory, sectionChannels]);
+    
+    let src: Channel[] = [];
+    if (activeCategory === FAVS_KEY) {
+      src = favoriteChannels;
+    } else if (activeCategory) {
+      const cat = sectionCategories.find(c => c.name === activeCategory);
+      src = cat ? cat.channels : [];
+    } else {
+      src = sectionChannels;
+    }
+
+    const matched: Channel[] = [];
+    for (const c of src) {
+      if ((c.seriesName ?? c.name) === activeShow) {
+        matched.push(c);
+      }
+    }
+    return matched.sort((a, b) => ((a.seasonNum ?? 0) - (b.seasonNum ?? 0)) || ((a.episodeNum ?? 0) - (b.episodeNum ?? 0)));
+  }, [activeShow, activeCategory, sectionCategories, sectionChannels, favoriteChannels]);
 
   // Channels shown when inside a live/movies category
   const categoryChannels = useMemo(() => {
     if (!activeCategory) return [];
     if (activeCategory === FAVS_KEY) return favoriteChannels;
-    return sectionChannels.filter(c => c.group === activeCategory);
-  }, [activeCategory, favoriteChannels, sectionChannels]);
+    const cat = sectionCategories.find(c => c.name === activeCategory);
+    return cat ? cat.channels : [];
+  }, [activeCategory, favoriteChannels, sectionCategories]);
 
-  // Search — flat results for live/movies; grouped by show for series
+  // Search — flat results for VOD/Live with early break at 200 matches
   const searchResults = useMemo(() => {
     if (!search.trim()) return [];
     const q = search.toLowerCase();
-    return sectionChannels.filter(c =>
-      c.name.toLowerCase().includes(q) || (c.seriesName ?? '').toLowerCase().includes(q)
-    ).slice(0, 200);
+    const matched: Channel[] = [];
+    for (const c of sectionChannels) {
+      if (c.name.toLowerCase().includes(q) || (c.seriesName ?? '').toLowerCase().includes(q)) {
+        matched.push(c);
+        if (matched.length >= 200) break;
+      }
+    }
+    return matched;
   }, [search, sectionChannels]);
 
   const isLive = section === 'live';
@@ -717,7 +753,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
 
         {/* ════════════════════════════════════════════ MOVIES ════════════════════════════════════════════ */}
 
-        {!search.trim() && isMovies && (
+        {!search.trim() && isMovies && !activeCategory && (
           <div className="py-4 space-y-6">
             {/* Continue Watching row */}
             {continueWatchingMovies.length > 0 && (
@@ -736,6 +772,7 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
                 currentChannelId={currentChannel?.id ?? null}
                 onSelect={setSelectedDetailChannel}
                 onToggleFav={ch => toggleFavorite(ch.id)}
+                onHeaderClick={() => setActiveCategory(FAVS_KEY)}
               />
             )}
             {sectionCategories.slice(0, visibleCategoriesLimit).map(cat => (
@@ -745,6 +782,22 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
                 currentChannelId={currentChannel?.id ?? null}
                 onSelect={setSelectedDetailChannel}
                 onToggleFav={ch => toggleFavorite(ch.id)}
+                onHeaderClick={() => setActiveCategory(cat.name)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Movies: Movie list inside category */}
+        {!search.trim() && isMovies && activeCategory && (
+          <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-3">
+            {categoryChannels.slice(0, visibleLimit).map(ch => (
+              <PosterCard
+                key={ch.id}
+                channel={ch}
+                isActive={currentChannel?.id === ch.id}
+                onSelect={() => setSelectedDetailChannel(ch)}
+                onToggleFav={() => toggleFavorite(ch.id)}
               />
             ))}
           </div>
@@ -1027,20 +1080,24 @@ const EpisodeRow: React.FC<EpisodeRowProps> = ({ channel, isActive, onSelect, on
 
 // ─── Category Row (movies horizontal scroll) ──────────────────────────────────
 
-interface CategoryRowProps { category: Category; currentChannelId: string | null; onSelect: (ch: Channel) => void; onToggleFav: (ch: Channel) => void; }
+interface CategoryRowProps {
+  category: Category;
+  currentChannelId: string | null;
+  onSelect: (ch: Channel) => void;
+  onToggleFav: (ch: Channel) => void;
+  onHeaderClick?: () => void;
+}
 
-const CategoryRow: React.FC<CategoryRowProps> = ({ category, currentChannelId, onSelect, onToggleFav }) => {
+const CategoryRow: React.FC<CategoryRowProps> = ({ category, currentChannelId, onSelect, onToggleFav, onHeaderClick }) => {
   const rowRef = useRef<HTMLDivElement>(null);
-  const [showAll, setShowAll] = useState(false);
-  const limit = showAll ? Math.min(category.channels.length, 120) : 20;
   return (
     <div className="space-y-1">
       {/* Unified Category Header - Focusable for TV spatial navigation */}
       <div
         role="button"
         tabIndex={category.channels.length > 10 ? 0 : -1}
-        onClick={() => { if (category.channels.length > 10) setShowAll(s => !s); }}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (category.channels.length > 10) setShowAll(s => !s); } }}
+        onClick={() => { if (category.channels.length > 10 && onHeaderClick) onHeaderClick(); }}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (category.channels.length > 10 && onHeaderClick) onHeaderClick(); } }}
         className={`flex items-center justify-between px-4 py-1.5 mx-2 rounded-xl transition-all text-left focus:outline-none ${
           category.channels.length > 10
             ? 'focusable-tv hover:bg-white/5 focus:bg-white/10 cursor-pointer'
@@ -1057,17 +1114,14 @@ const CategoryRow: React.FC<CategoryRowProps> = ({ category, currentChannelId, o
         </div>
         {category.channels.length > 10 && (
           <div className="flex items-center gap-1 text-xs text-gray-500 group-hover:text-violet-300 transition-colors">
-            <span>{showAll ? 'Ver menos' : 'Ver todos'}</span>
-            <ChevronRight className={`w-3 h-3 transition-transform ${showAll ? 'rotate-90' : ''}`} />
+            <span>Ver todos</span>
+            <ChevronRight className="w-3 h-3" />
           </div>
         )}
       </div>
 
-      <div ref={rowRef} className={showAll
-        ? 'px-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2'
-        : 'flex gap-2 px-4 overflow-x-auto scrollbar-thin pb-1'
-      }>
-        {category.channels.slice(0, limit).map(ch => (
+      <div ref={rowRef} className="flex gap-2 px-4 overflow-x-auto scrollbar-thin pb-1">
+        {category.channels.slice(0, 20).map(ch => (
           <PosterCard
             key={ch.id}
             channel={ch}

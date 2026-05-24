@@ -6,7 +6,15 @@ import { groupByCategory } from '../utils/m3uParser.ts';
 interface IPTVState {
   // Data
   channels: Channel[];
+  liveChannels: Channel[];
+  movieChannels: Channel[];
+  seriesChannels: Channel[];
+  favoriteList: Channel[];
   categories: Category[];
+  liveCategories: Category[];
+  movieCategories: Category[];
+  seriesCategories: Category[];
+  idMap: Record<string, Channel>;
   currentChannel: Channel | null;
   activeCategory: string | null;
   searchQuery: string;
@@ -36,7 +44,15 @@ export const useIPTVStore = create<IPTVState>()(
   persist(
     (set, get) => ({
       channels: [],
+      liveChannels: [],
+      movieChannels: [],
+      seriesChannels: [],
+      favoriteList: [],
       categories: [],
+      liveCategories: [],
+      movieCategories: [],
+      seriesCategories: [],
+      idMap: {},
       currentChannel: null,
       activeCategory: null,
       searchQuery: '',
@@ -48,15 +64,52 @@ export const useIPTVStore = create<IPTVState>()(
 
       setChannels: (rawChannels, url) => {
         const { channels: existing } = get();
-        // Merge favorites from existing channels
         const favMap = new Map(existing.map(c => [c.id, c.isFavorite ?? false]));
-        const merged = rawChannels.map(c => ({
-          ...c,
-          isFavorite: favMap.get(c.id) ?? false,
-        }));
+        
+        const liveChannels: Channel[] = [];
+        const movieChannels: Channel[] = [];
+        const seriesChannels: Channel[] = [];
+        const favoriteList: Channel[] = [];
+        const idMap: Record<string, Channel> = {};
+
+        for (const c of rawChannels) {
+          c.isFavorite = favMap.get(c.id) ?? false;
+          idMap[c.id] = c;
+          
+          if (c.isFavorite) {
+            favoriteList.push(c);
+          }
+
+          if (c.contentType === 'movie') {
+            movieChannels.push(c);
+          } else if (c.contentType === 'series') {
+            seriesChannels.push(c);
+          } else {
+            liveChannels.push(c);
+          }
+        }
+
+        const liveCategories = groupByCategory(liveChannels);
+        const movieCategories = groupByCategory(movieChannels);
+        const seriesCategories = groupByCategory(seriesChannels);
+
+        const categories = [
+          ...liveCategories,
+          ...movieCategories,
+          ...seriesCategories
+        ].sort((a, b) => a.name.localeCompare(b.name));
+
         set({
-          channels: merged,
-          categories: groupByCategory(merged),
+          channels: rawChannels,
+          liveChannels,
+          movieChannels,
+          seriesChannels,
+          favoriteList,
+          categories,
+          liveCategories,
+          movieCategories,
+          seriesCategories,
+          idMap,
           playlistUrl: url,
           activeCategory: null,
           currentChannel: null,
@@ -66,7 +119,6 @@ export const useIPTVStore = create<IPTVState>()(
 
       setCurrentChannel: (channel) => {
         set({ currentChannel: channel });
-        // Auto-add to history if not null
         if (channel) {
           get().addToHistory(channel);
         }
@@ -77,15 +129,33 @@ export const useIPTVStore = create<IPTVState>()(
       setAutoLoading: (v) => set({ isAutoLoading: v }),
 
       toggleFavorite: (channelId) => {
-        const updated = get().channels.map(c =>
-          c.id === channelId ? { ...c, isFavorite: !c.isFavorite } : c
-        );
+        const { channels, liveChannels, movieChannels, seriesChannels, favoriteList, idMap } = get();
+        const item = idMap[channelId];
+        if (!item) return;
+
+        item.isFavorite = !item.isFavorite;
+
+        let updatedFavs = [...favoriteList];
+        if (item.isFavorite) {
+          if (!updatedFavs.some(c => c.id === channelId)) {
+            updatedFavs.push(item);
+          }
+        } else {
+          updatedFavs = updatedFavs.filter(c => c.id !== channelId);
+        }
+
         set({
-          channels: updated,
-          categories: groupByCategory(updated),
+          channels: [...channels],
+          liveChannels: [...liveChannels],
+          movieChannels: [...movieChannels],
+          seriesChannels: [...seriesChannels],
+          favoriteList: updatedFavs,
+          liveCategories: [...get().liveCategories],
+          movieCategories: [...get().movieCategories],
+          seriesCategories: [...get().seriesCategories],
           currentChannel:
             get().currentChannel?.id === channelId
-              ? { ...get().currentChannel!, isFavorite: !get().currentChannel!.isFavorite }
+              ? { ...get().currentChannel!, isFavorite: item.isFavorite }
               : get().currentChannel,
         });
       },
@@ -93,7 +163,15 @@ export const useIPTVStore = create<IPTVState>()(
       clearPlaylist: () =>
         set({
           channels: [],
+          liveChannels: [],
+          movieChannels: [],
+          seriesChannels: [],
+          favoriteList: [],
           categories: [],
+          liveCategories: [],
+          movieCategories: [],
+          seriesCategories: [],
+          idMap: {},
           currentChannel: null,
           activeCategory: null,
           playlistUrl: '',
@@ -112,7 +190,6 @@ export const useIPTVStore = create<IPTVState>()(
           contentType: channel.contentType,
           watchedAt: Date.now(),
         };
-        // Keep max 50 items, most recent first
         set({ history: [entry, ...existing].slice(0, 50) });
       },
 
@@ -141,7 +218,6 @@ export const useIPTVStore = create<IPTVState>()(
           percentage,
           updatedAt: Date.now(),
         };
-        // Keep max 50 items, most recent first
         set({ continueWatching: [entry, ...existing].slice(0, 50) });
       },
 
@@ -153,16 +229,12 @@ export const useIPTVStore = create<IPTVState>()(
     }),
     {
       name: 'iptv-storage',
-      // Only persist lightweight data — channels are too large (200k+)
       partialize: (state) => ({
         playlistUrl: state.playlistUrl,
         history: state.history,
         continueWatching: state.continueWatching,
         tmdbApiKey: state.tmdbApiKey,
-        // Persist favorites map separately (small)
-        favorites: state.channels
-          .filter(c => c.isFavorite)
-          .map(c => c.id),
+        favorites: state.favoriteList.map(c => c.id),
       }),
       storage: {
         getItem: (key) => {
@@ -178,7 +250,6 @@ export const useIPTVStore = create<IPTVState>()(
             localStorage.setItem(key, JSON.stringify(value));
           } catch {
             try {
-              // Strip favorites list if too large
               const slim = { ...value, state: { ...value.state, favorites: [] } };
               localStorage.setItem(key, JSON.stringify(slim));
             } catch {

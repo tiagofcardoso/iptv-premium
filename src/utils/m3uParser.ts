@@ -92,58 +92,52 @@ function extractSeriesInfo(name: string): {
   return {};
 }
 
-/**
- * Parses a raw M3U playlist string into a structured array of Channel objects.
- * Handles both standard #EXTINF directives and their various attribute formats.
- */
 export function parseM3U(content: string): Channel[] {
   const channels: Channel[] = [];
-  // Split into lines, trim whitespace, remove empty lines
-  const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
+  let pos = 0;
+  const len = content.length;
+  let currentExtinf = '';
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+  while (pos < len) {
+    let nextNL = content.indexOf('\n', pos);
+    if (nextNL === -1) nextNL = len;
 
-    if (!line.startsWith('#EXTINF')) continue;
+    const line = content.substring(pos, nextNL).trim();
+    pos = nextNL + 1;
 
-    // Extract tvg-logo attribute
-    const logoMatch = line.match(/tvg-logo="([^"]*)"/i);
-    const logo = logoMatch ? logoMatch[1] : '';
+    if (!line) continue;
 
-    // Extract group-title attribute
-    const groupMatch = line.match(/group-title="([^"]*)"/i);
-    const group = groupMatch ? groupMatch[1].trim() : 'Uncategorized';
+    if (line.startsWith('#EXTINF')) {
+      currentExtinf = line;
+    } else if (!line.startsWith('#')) {
+      if (currentExtinf) {
+        const logoMatch = currentExtinf.match(/tvg-logo="([^"]*)"/i);
+        const logo = logoMatch ? logoMatch[1] : '';
 
-    // Extract channel name: everything after the last comma in the #EXTINF line
-    const nameMatch = line.match(/,(.+)$/);
-    const name = nameMatch ? nameMatch[1].trim() : 'Unknown Channel';
+        const groupMatch = currentExtinf.match(/group-title="([^"]*)"/i);
+        const group = groupMatch ? groupMatch[1].trim() : 'Uncategorized';
 
-    // The URL is the next non-comment, non-empty line
-    let url = '';
-    for (let j = i + 1; j < lines.length; j++) {
-      if (!lines[j].startsWith('#') && lines[j].length > 0) {
-        url = lines[j].trim();
-        i = j; // skip processed lines
-        break;
+        const nameMatch = currentExtinf.match(/,(.+)$/);
+        const name = nameMatch ? nameMatch[1].trim() : 'Unknown Channel';
+
+        const normalizedUrl = normalizeStreamUrl(line);
+        const contentType = detectContentType(group, normalizedUrl);
+        const seriesInfo = contentType === 'series' ? extractSeriesInfo(name) : {};
+
+        channels.push({
+          id: generateId(normalizedUrl, name),
+          name,
+          url: normalizedUrl,
+          logo,
+          group: group || 'Uncategorized',
+          isFavorite: false,
+          contentType,
+          ...seriesInfo,
+        });
+
+        currentExtinf = '';
       }
     }
-
-    if (!url) continue;
-
-    const normalizedUrl = normalizeStreamUrl(url);
-    const contentType = detectContentType(group, normalizedUrl);
-    const seriesInfo = contentType === 'series' ? extractSeriesInfo(name) : {};
-
-    channels.push({
-      id: generateId(normalizedUrl, name),
-      name,
-      url: normalizedUrl,
-      logo,
-      group: group || 'Uncategorized',
-      isFavorite: false,
-      contentType,
-      ...seriesInfo,
-    });
   }
 
   return channels;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Tv, Settings } from 'lucide-react';
 import HomeScreen from './components/HomeScreen.tsx';
 import ContentBrowser from './components/ContentBrowser.tsx';
@@ -41,6 +41,7 @@ function App() {
   const {
     currentChannel, setCurrentChannel, channels,
     playlistUrl, setChannels, setAutoLoading,
+    liveChannels, movieChannels, seriesChannels,
   } = useIPTVStore();
 
   // ── Replace initial history entry so the very first "back" stays in-app ──────
@@ -392,19 +393,22 @@ function App() {
   };
 
   // ── Content counts ────────────────────────────────────────────────────────────
-  const moviesCount = channels.filter(c => c.contentType === 'movie').length;
-  const seriesCount = channels.filter(c => c.contentType === 'series').length;
+  const moviesCount = movieChannels.length;
+  const seriesCount = seriesChannels.length;
 
   // ── Playlist context for prev/next in player ──────────────────────────────────
-  const sectionChannels = screen === 'player' && currentChannel
-    ? channels.filter(c => c.contentType === currentChannel.contentType)
-    : [];
+  const sectionChannels = useMemo(() => {
+    if (screen !== 'player' || !currentChannel) return [];
+    if (currentChannel.contentType === 'movie') return movieChannels;
+    if (currentChannel.contentType === 'series') return seriesChannels;
+    return liveChannels;
+  }, [screen, currentChannel, liveChannels, movieChannels, seriesChannels]);
   const currentIsLive = currentChannel?.contentType === 'live' || currentChannel?.contentType == null;
 
   const handleNavigateChannel = useCallback((id: string) => {
-    const ch = channels.find(c => c.id === id);
+    const ch = useIPTVStore.getState().idMap[id];
     if (ch) setCurrentChannel(ch);
-  }, [channels, setCurrentChannel]);
+  }, [setCurrentChannel]);
 
 
   return (

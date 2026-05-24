@@ -25,6 +25,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
     searchQuery, playlistUrl, tmdbApiKey,
     setChannels, setCurrentChannel, setActiveCategory,
     setSearchQuery, toggleFavorite, clearPlaylist, setTmdbApiKey,
+    favoriteList,
   } = useIPTVStore();
 
   const [urlInput, setUrlInput] = useState(playlistUrl || '');
@@ -118,24 +119,43 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
   /** Channels for the current view / search */
   const visibleChannels = useMemo((): Channel[] => {
     let pool = channels;
-    if (view === 'favorites') pool = channels.filter(c => c.isFavorite);
-    else if (activeCategory) pool = channels.filter(c => c.group === activeCategory);
+    if (view === 'favorites') {
+      pool = favoriteList;
+    } else if (activeCategory) {
+      const cat = categories.find(c => c.name === activeCategory);
+      pool = cat ? cat.channels : [];
+    }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      pool = pool.filter(c => c.name.toLowerCase().includes(q) || (c.seriesName ?? '').toLowerCase().includes(q));
+      const matched: Channel[] = [];
+      for (const c of pool) {
+        if (c.name.toLowerCase().includes(q) || (c.seriesName ?? '').toLowerCase().includes(q)) {
+          matched.push(c);
+          if (matched.length >= 200) break;
+        }
+      }
+      pool = matched;
     }
     return pool;
-  }, [channels, view, activeCategory, searchQuery]);
+  }, [channels, favoriteList, categories, view, activeCategory, searchQuery]);
 
   /** Group series episodes under their series name */
   const groupedSeries = useMemo(() => {
     if (!activeCategory) return null;
     const cat = categories.find(c => c.name === activeCategory);
     if (!cat) return null;
-    // Only group if majority of channels are series type
-    const seriesCount = cat.channels.filter(c => c.contentType === 'series' || c.seriesName).length;
-    if (seriesCount < cat.channels.length * 0.3) return null;
+    
+    // Only group if majority of channels are series type (sample first 50 to avoid linear scan of large categories)
+    const sampleSize = Math.min(cat.channels.length, 50);
+    let seriesCount = 0;
+    for (let idx = 0; idx < sampleSize; idx++) {
+      const ch = cat.channels[idx];
+      if (ch.contentType === 'series' || ch.seriesName) {
+        seriesCount++;
+      }
+    }
+    if (seriesCount < sampleSize * 0.3) return null;
 
     const map = new Map<string, Channel[]>();
     for (const ch of visibleChannels) {
@@ -146,10 +166,9 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
     return map;
   }, [activeCategory, visibleChannels, categories]);
 
-  const favorites = channels.filter(c => c.isFavorite);
-  const favLive   = favorites.filter(c => c.contentType === 'live' || !c.contentType);
-  const favMovies = favorites.filter(c => c.contentType === 'movie');
-  const favSeries = favorites.filter(c => c.contentType === 'series');
+  const favLive   = useMemo(() => favoriteList.filter(c => c.contentType === 'live' || !c.contentType), [favoriteList]);
+  const favMovies = useMemo(() => favoriteList.filter(c => c.contentType === 'movie'), [favoriteList]);
+  const favSeries = useMemo(() => favoriteList.filter(c => c.contentType === 'series'), [favoriteList]);
 
   return (
     <>
@@ -258,7 +277,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
           <div className="flex px-3 py-2 gap-1 border-b border-white/5 shrink-0">
             {[
               { key: 'categories' as const, icon: List, label: 'Categorias' },
-              { key: 'favorites' as const, icon: Star, label: `Favoritos${favorites.length ? ` (${favorites.length})` : ''}` },
+              { key: 'favorites' as const, icon: Star, label: `Favoritos${favoriteList.length ? ` (${favoriteList.length})` : ''}` },
             ].map(({ key, icon: Icon, label }) => (
               <button
                 key={key}
@@ -295,7 +314,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onToggle, playerRef }) => {
           {/* ── FAVORITES view ── */}
           {channels.length > 0 && view === 'favorites' && (
             <div className="py-2">
-              {favorites.length === 0 ? (
+              {favoriteList.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-center gap-2">
                   <Heart className="w-8 h-8 text-gray-700" />
                   <p className="text-gray-600 text-xs">Nenhum favorito ainda.<br />Clica no ❤ em qualquer canal.</p>
