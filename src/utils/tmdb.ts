@@ -23,23 +23,31 @@ try {
   console.warn('Failed to load TMDB cache from localStorage:', e);
 }
 
+let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+
 function saveCache() {
-  // Evict oldest entries if cache is too large (FIFO eviction)
-  const keys = Object.keys(tmdbCache);
-  if (keys.length > MAX_CACHE_ENTRIES) {
-    const toEvict = keys.slice(0, keys.length - MAX_CACHE_ENTRIES + 100);
-    for (const k of toEvict) delete tmdbCache[k];
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
   }
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(tmdbCache));
-  } catch (e) {
-    // If storage is still full, clear the entire TMDB cache and retry
-    console.warn('TMDB Cache write failed — clearing and retrying:', e);
+  saveTimeout = setTimeout(() => {
+    saveTimeout = null;
+    // Evict oldest entries if cache is too large (FIFO eviction)
+    const keys = Object.keys(tmdbCache);
+    if (keys.length > MAX_CACHE_ENTRIES) {
+      const toEvict = keys.slice(0, keys.length - MAX_CACHE_ENTRIES + 100);
+      for (const k of toEvict) delete tmdbCache[k];
+    }
     try {
-      tmdbCache = {};
-      localStorage.removeItem(CACHE_KEY);
-    } catch { /* ignore */ }
-  }
+      localStorage.setItem(CACHE_KEY, JSON.stringify(tmdbCache));
+    } catch (e) {
+      // If storage is still full, clear the entire TMDB cache and retry
+      console.warn('TMDB Cache write failed — clearing and retrying:', e);
+      try {
+        tmdbCache = {};
+        localStorage.removeItem(CACHE_KEY);
+      } catch { /* ignore */ }
+    }
+  }, 1000);
 }
 
 /**
@@ -105,7 +113,7 @@ export async function getTMDBMetadata(
   if (!cleaned) return null;
 
   const cacheKeyStr = `${type}:${cleaned.toLowerCase()}`;
-  if (tmdbCache[cacheKeyStr]) {
+  if (cacheKeyStr in tmdbCache) {
     return tmdbCache[cacheKeyStr];
   }
 
