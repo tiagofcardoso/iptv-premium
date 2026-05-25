@@ -1,6 +1,5 @@
 import React from 'react';
 import { Tv, Clapperboard, RefreshCw, Wifi, WifiOff, Loader2, Download, Settings } from 'lucide-react';
-import { useIPTVStore } from '../store/useIPTVStore.ts';
 
 interface HomeScreenProps {
   channelsCount: number;
@@ -54,44 +53,10 @@ const MovieReelIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-// ─── Netflix-style 3D Scrolling Poster Background ───────────────────────────────
+// ─── NetflixPosterBackground: React.FC = () => {
 const NetflixPosterBackground: React.FC = () => {
-  const { liveChannels, movieChannels, seriesChannels } = useIPTVStore();
-
-  const posters = React.useMemo(() => {
-    const list: string[] = [];
-    const seen = new Set<string>();
-
-    // 1. Collect movie posters
-    for (const ch of movieChannels) {
-      if (ch.logo && ch.logo.startsWith('http') && !seen.has(ch.logo)) {
-        seen.add(ch.logo);
-        list.push(ch.logo);
-      }
-      if (list.length >= 24) break;
-    }
-
-    // 2. Collect series posters
-    for (const ch of seriesChannels) {
-      if (ch.logo && ch.logo.startsWith('http') && !seen.has(ch.logo)) {
-        seen.add(ch.logo);
-        list.push(ch.logo);
-      }
-      if (list.length >= 36) break;
-    }
-
-    // Mix in fallback posters so we always have a rich grid, even on first load
-    if (list.length < 18) {
-      for (const url of FALLBACK_POSTERS) {
-        if (!seen.has(url)) {
-          seen.add(url);
-          list.push(url);
-        }
-      }
-    }
-
-    return list;
-  }, [liveChannels, movieChannels, seriesChannels]);
+  // Use the fixed set of high-quality posters all the time
+  const posters = FALLBACK_POSTERS;
 
   // Split posters into six rows to cover the entire screen from top to bottom
   const rowLength = Math.ceil(posters.length / 6);
@@ -106,7 +71,7 @@ const NetflixPosterBackground: React.FC = () => {
   const duplicateList = (arr: string[]) => {
     if (arr.length === 0) return [];
     let result = [...arr];
-    while (result.length < 12) {
+    while (result.length < 10) {
       result = [...result, ...arr];
     }
     return [...result, ...result]; // Duplicate for seamless infinite marquee transition
@@ -126,7 +91,7 @@ const NetflixPosterBackground: React.FC = () => {
         src={logo}
         alt=""
         loading="lazy"
-        className="w-[100px] h-[150px] sm:w-[130px] sm:h-[195px] rounded-2xl object-cover shrink-0 border border-white/5 shadow-lg opacity-[0.28] brightness-[0.7] contrast-[1.05] saturate-[0.9] hover:opacity-[0.8] transition-all duration-500"
+        className="w-[100px] h-[150px] sm:w-[130px] sm:h-[195px] rounded-2xl object-cover shrink-0 border border-white/10 shadow-lg opacity-[0.72] brightness-[0.95] contrast-[1.05] saturate-[1.05] hover:opacity-[0.88] transition-all duration-500"
         onError={(e) => {
           (e.target as HTMLElement).style.display = 'none';
         }}
@@ -135,7 +100,7 @@ const NetflixPosterBackground: React.FC = () => {
   };
 
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0 bg-[#030712]">
+    <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0 bg-[#060a16]">
       {/* 3D Perspective Grid Container */}
       <div
         className="absolute w-[220%] h-[220%] -left-[60%] -top-[60%] flex flex-col gap-5 transition-all duration-1000"
@@ -199,10 +164,10 @@ const NetflixPosterBackground: React.FC = () => {
         )}
       </div>
 
-      {/* Dark Vignettes & Blurs to match mockup design exactly */}
-      <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/20 to-gray-950/70 z-1" />
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-[0.5px] z-1" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_55%,#030712_98%)] z-1" />
+      {/* Subtle vignettes to merge edges into dark theme, keeping background bright and clear */}
+      <div className="absolute inset-0 bg-gradient-to-t from-gray-950/70 via-transparent to-gray-950/20 z-1" />
+      <div className="absolute inset-0 bg-black/5 backdrop-blur-[0.2px] z-1" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_65%,#030712_82%)] z-1" />
     </div>
   );
 };
