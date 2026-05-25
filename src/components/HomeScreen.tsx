@@ -256,15 +256,16 @@ const NetflixPosterBackground: React.FC = () => {
     return items;
   }, [hasPlaylist, movieChannels, seriesChannels, liveChannels]);
 
-  // Distribute into 6 rows
+  // Distribute into 10 rows — enough to cover full screen even with 14deg rotation loss
+  const NUM_ROWS = 10;
   const rows = useMemo(() => {
     const N = posterList.length;
-    const perRow = Math.max(4, Math.ceil(N / 6));
-    const speeds = ['80s', '95s', '70s', '88s', '92s', '75s'];
-    const dirs = ['left', 'right', 'left', 'right', 'left', 'right'] as const;
+    const perRow = Math.max(5, Math.ceil(N / 6));
+    const speeds = ['80s', '95s', '70s', '88s', '92s', '75s', '82s', '98s', '67s', '85s'];
+    const dirs = ['left', 'right', 'left', 'right', 'left', 'right', 'left', 'right', 'left', 'right'] as const;
 
-    return Array.from({ length: 6 }, (_, r) => {
-      const start = (r * 3) % N; // stagger offsets per row
+    return Array.from({ length: NUM_ROWS }, (_, r) => {
+      const start = (r * 3) % N;
       const raw: typeof posterList = [];
       for (let i = 0; i < perRow; i++) {
         raw.push(posterList[(start + i) % N]);
@@ -276,22 +277,22 @@ const NetflixPosterBackground: React.FC = () => {
 
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0" style={{ background: '#07091a' }}>
-      {/* 3D grid */}
+      {/* 3D perspective grid — wide and tall to cover full viewport despite rotation */}
       <div
-        className="absolute flex flex-col gap-4"
+        className="absolute flex flex-col gap-3"
         style={{
-          width: '230%',
-          height: '230%',
-          left: '-65%',
-          top: '-55%',
-          transform: 'rotate(-14deg) skewX(-10deg)',
+          width: '280%',
+          height: '420%',
+          left: '-90%',
+          top: '-120%',
+          transform: 'rotate(-14deg) skewX(-8deg)',
           willChange: 'transform',
         }}
       >
         {rows.map((row, rowIdx) => (
-          <div key={rowIdx} className="flex gap-4 overflow-hidden shrink-0">
+          <div key={rowIdx} className="flex gap-3 overflow-hidden shrink-0">
             <div
-              className="flex gap-4 shrink-0"
+              className="flex gap-3 shrink-0"
               style={{
                 animation: `marquee-scroll-${row.dir} ${row.speed} linear infinite`,
                 willChange: 'transform',
@@ -316,10 +317,10 @@ const NetflixPosterBackground: React.FC = () => {
         ))}
       </div>
 
-      {/* Vignettes */}
-      <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, #07091a 28%, rgba(7,9,26,0.45) 52%, transparent 78%)' }} />
-      <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, #07091a 0%, transparent 10%, transparent 90%, #07091a 100%)' }} />
-      <div className="absolute inset-0 bg-black/15" />
+      {/* Vignette — lighter fade so posters are visible throughout */}
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, #07091a 22%, rgba(7,9,26,0.3) 48%, transparent 72%)' }} />
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, #07091a 0%, transparent 8%, transparent 92%, #07091a 100%)' }} />
+      <div className="absolute inset-0 bg-black/10" />
     </div>
   );
 };
