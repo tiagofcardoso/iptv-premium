@@ -15,6 +15,25 @@ interface HomeScreenProps {
   onInstall: () => void;
 }
 
+const FALLBACK_POSTERS = [
+  'https://image.tmdb.org/t/p/w300/1g0zz53tbmd7o40yqvnVj9xmiR8.jpg', // Spider-Man
+  'https://image.tmdb.org/t/p/w300/RYMX2wc7h6uzcj86LgnFB8qMR4.jpg', // Avengers
+  'https://image.tmdb.org/t/p/w300/d5Nguix71eJ6732v2xmG6yII20v.jpg', // Dune
+  'https://image.tmdb.org/t/p/w300/8Gxv2wSdqwZCNy7V5suhgyvjkgL.jpg', // Oppenheimer
+  'https://image.tmdb.org/t/p/w300/qJ2tW6WMUDmg91j1CWfeHjC48N5.jpg', // Batman
+  'https://image.tmdb.org/t/p/w300/gEU2QvIPwcwqn1vSfVFFlpHQZSL.jpg', // Interstellar
+  'https://image.tmdb.org/t/p/w300/ty85bU2oLMw5as575nZ7t5n1K5B.jpg', // Gladiator
+  'https://image.tmdb.org/t/p/w300/udDclsubCe1corj1v0upg3SMF4F.jpg', // Joker
+  'https://image.tmdb.org/t/p/w300/6FfCtAuVA66wbJqSYSRjoZ03X1z.jpg', // Star Wars
+  'https://image.tmdb.org/t/p/w300/oU76qV8kySUV46qX77MgSG0j44A.jpg', // Jurassic Park
+  'https://image.tmdb.org/t/p/w300/f89U3wLrjFutm68n7G14SVnfxQE.jpg', // Matrix
+  'https://image.tmdb.org/t/p/w300/d5iLLOFmxe9hnmKBw64hx2xbNsZ.jpg', // Pulp Fiction
+  'https://image.tmdb.org/t/p/w300/9gk7adHYeZCE1324miEwH2u2OV2.jpg', // Inception
+  'https://image.tmdb.org/t/p/w300/9xj7v4a65EQPAwzk4e25wfs85C5.jpg', // Titanic
+  'https://image.tmdb.org/t/p/w300/6oom5Qn26v65cuN6Q08h97EOFQS.jpg', // Lord of the Rings
+  'https://image.tmdb.org/t/p/w300/kyeqWzo2vQUygj2ZNrMj562nU0C.jpg', // Avatar
+];
+
 // ─── Netflix-style 3D Scrolling Poster Background ───────────────────────────────
 const NetflixPosterBackground: React.FC = () => {
   const { liveChannels, movieChannels, seriesChannels } = useIPTVStore();
@@ -29,7 +48,7 @@ const NetflixPosterBackground: React.FC = () => {
         seen.add(ch.logo);
         list.push(ch.logo);
       }
-      if (list.length >= 18) break;
+      if (list.length >= 20) break;
     }
 
     // 2. Collect series posters
@@ -41,10 +60,10 @@ const NetflixPosterBackground: React.FC = () => {
       if (list.length >= 30) break;
     }
 
-    // 3. Collect sports channel/event logos
+    // 3. Collect sports channel logos for variance
     for (const ch of liveChannels) {
       const name = ch.name.toUpperCase();
-      const isSports = name.includes('SPORT') || name.includes('ESPN') || name.includes('DAZN') || name.includes('PREMIERE') || name.includes('BENFICA') || name.includes('VIVO');
+      const isSports = name.includes('SPORT') || name.includes('ESPN') || name.includes('DAZN') || name.includes('PREMIERE');
       if (isSports && ch.logo && ch.logo.startsWith('http') && !seen.has(ch.logo)) {
         seen.add(ch.logo);
         list.push(ch.logo);
@@ -52,9 +71,14 @@ const NetflixPosterBackground: React.FC = () => {
       if (list.length >= 36) break;
     }
 
-    // Fallback placeholders if the playlist is empty (first launch)
-    if (list.length === 0) {
-      return Array.from({ length: 24 }).map((_, i) => `fallback-${i}`);
+    // Mix in fallback posters so we always have a rich grid, even on first load
+    if (list.length < 15) {
+      for (const url of FALLBACK_POSTERS) {
+        if (!seen.has(url)) {
+          seen.add(url);
+          list.push(url);
+        }
+      }
     }
 
     return list;
@@ -81,27 +105,13 @@ const NetflixPosterBackground: React.FC = () => {
   const r3Double = duplicateList(row3);
 
   const renderPoster = (logo: string, idx: number) => {
-    if (logo.startsWith('fallback-')) {
-      const hue = (idx * 45) % 360;
-      return (
-        <div
-          key={`${logo}-${idx}`}
-          className="w-[100px] h-[150px] sm:w-[130px] sm:h-[195px] rounded-xl shrink-0 border border-white/5 flex flex-col items-center justify-center p-3 text-center"
-          style={{ background: `linear-gradient(135deg, hsl(${hue}, 50%, 12%) 0%, hsl(${hue}, 40%, 4%) 100%)` }}
-        >
-          <Film className="w-7 h-7 text-white/10 mb-2 stroke-[1]" />
-          <span className="text-[9px] text-white/20 font-bold tracking-widest uppercase">CINE</span>
-        </div>
-      );
-    }
-
     return (
       <img
         key={`${logo}-${idx}`}
         src={logo}
         alt=""
         loading="lazy"
-        className="w-[100px] h-[150px] sm:w-[130px] sm:h-[195px] rounded-xl object-cover shrink-0 border border-white/5 shadow-md brightness-[0.8] saturate-[0.8] hover:brightness-100 transition-all duration-300"
+        className="w-[100px] h-[150px] sm:w-[130px] sm:h-[195px] rounded-2xl object-cover shrink-0 border border-white/10 shadow-lg opacity-[0.38] brightness-[0.8] contrast-[1.1] saturate-[1.1] hover:opacity-[0.8] transition-all duration-500"
         onError={(e) => {
           (e.target as HTMLElement).style.display = 'none';
         }}
@@ -110,19 +120,19 @@ const NetflixPosterBackground: React.FC = () => {
   };
 
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0">
+    <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0 bg-[#030712]">
       {/* 3D Perspective Grid Container */}
       <div
-        className="absolute w-[200%] h-[200%] -left-[50%] -top-[50%] flex flex-col gap-4 transition-all duration-1000"
+        className="absolute w-[200%] h-[200%] -left-[50%] -top-[50%] flex flex-col gap-5 transition-all duration-1000"
         style={{
-          transform: 'rotate(-12deg) skewX(-12deg) scale(1.15) translateY(-5%)',
+          transform: 'rotate(-12deg) skewX(-12deg) scale(1.18) translateY(-5%)',
           willChange: 'transform'
         }}
       >
         {/* Row 1: Left scrolling */}
         {r1Double.length > 0 && (
-          <div className="flex gap-4 overflow-hidden">
-            <div className="animate-marquee-left flex gap-4">
+          <div className="flex gap-5 overflow-hidden">
+            <div className="animate-marquee-left flex gap-5">
               {r1Double.map((logo, idx) => renderPoster(logo, idx))}
             </div>
           </div>
@@ -130,8 +140,8 @@ const NetflixPosterBackground: React.FC = () => {
 
         {/* Row 2: Right scrolling (reverse) */}
         {r2Double.length > 0 && (
-          <div className="flex gap-4 overflow-hidden">
-            <div className="animate-marquee-right flex gap-4">
+          <div className="flex gap-5 overflow-hidden">
+            <div className="animate-marquee-right flex gap-5">
               {r2Double.map((logo, idx) => renderPoster(logo, idx))}
             </div>
           </div>
@@ -139,8 +149,8 @@ const NetflixPosterBackground: React.FC = () => {
 
         {/* Row 3: Left scrolling */}
         {r3Double.length > 0 && (
-          <div className="flex gap-4 overflow-hidden">
-            <div className="animate-marquee-left flex gap-4">
+          <div className="flex gap-5 overflow-hidden">
+            <div className="animate-marquee-left flex gap-5">
               {r3Double.map((logo, idx) => renderPoster(logo, idx))}
             </div>
           </div>
@@ -148,9 +158,9 @@ const NetflixPosterBackground: React.FC = () => {
       </div>
 
       {/* Dark Vignettes & Blurs to enhance legibility of foreground */}
-      <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/70 to-gray-950/90 z-1" />
-      <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px] z-1" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_20%,#030712_95%)] z-1" />
+      <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/20 to-gray-950/70 z-1" />
+      <div className="absolute inset-0 bg-black/10 backdrop-blur-[0.5px] z-1" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_60%,#030712_98%)] z-1" />
     </div>
   );
 };
