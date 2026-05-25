@@ -2,7 +2,7 @@ import React, { useRef, useState, useMemo, useCallback, useEffect } from 'react'
 import { ChevronRight, Play, Heart, ArrowLeft, Tv, Folder, Star, Search, X } from 'lucide-react';
 import type { Channel, Category, ContinueWatchingEntry } from '../types/index.ts';
 import { useIPTVStore } from '../store/useIPTVStore.ts';
-import { getTMDBMetadata } from '../utils/tmdb.ts';
+import { getTMDBMetadata, cleanTitle } from '../utils/tmdb.ts';
 import DetailModal from './DetailModal.tsx';
 
 interface ContentBrowserProps {
@@ -134,6 +134,16 @@ export function getEPGInfo(channelName: string, channelId: string): EPGInfo {
 
   return { programTitle, progress };
 }
+
+const isReleasesCategory = (name: string): boolean => {
+  const norm = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return norm.includes("lancamento");
+};
+
+const is4KCategory = (name: string): boolean => {
+  const norm = name.toLowerCase();
+  return norm.includes("4k") || norm.includes("ultra hd") || norm.includes("uhd");
+};
 
 // ─── Long-press hook ──────────────────────────────────────────────────────────
 function useLongPress(callback: () => void, onClickAction?: (e: any) => void, ms = 600) {
@@ -354,6 +364,17 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
     idMap
   } = useIPTVStore();
   const [selectedDetailChannel, setSelectedDetailChannel] = useState<Channel | null>(null);
+  const [cacheTrigger, setCacheTrigger] = useState(0);
+
+  useEffect(() => {
+    const handleCacheUpdate = () => {
+      setCacheTrigger(prev => prev + 1);
+    };
+    window.addEventListener('tmdb-cache-updated', handleCacheUpdate);
+    return () => {
+      window.removeEventListener('tmdb-cache-updated', handleCacheUpdate);
+    };
+  }, []);
 
 
 
@@ -409,9 +430,96 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
   // Categories (platforms/groups)
   const sectionCategories = useMemo(() => {
     if (section === 'live') return liveCategories;
-    if (section === 'movies') return movieCategories;
+    if (section === 'movies') {
+      const releaseCats = movieCategories.filter(cat => isReleasesCategory(cat.name));
+      const fourkCats = movieCategories.filter(cat => is4KCategory(cat.name));
+      const otherCats = movieCategories.filter(cat => !isReleasesCategory(cat.name) && !is4KCategory(cat.name));
+      const combined = [...releaseCats, ...fourkCats, ...otherCats];
+      
+      let cache: Record<string, any> = {};
+      try {
+        const raw = localStorage.getItem('iptv-tmdb-cache-v1');
+        if (raw) cache = JSON.parse(raw);
+      } catch (e) {
+        // ignore
+      }
+
+      const getRating = (name: string): number => {
+        const cleaned = cleanTitle(name);
+        const key = `movie:${cleaned.toLowerCase()}`;
+        return cache[key]?.voteAverage ?? 0;
+      };
+
+      return combined.map(cat => {
+        const sortedChannels = [...cat.channels].sort((a, b) => {
+          const ratingA = getRating(a.name);
+          const ratingB = getRating(b.name);
+          if (ratingB !== ratingA) {
+            return ratingB - ratingA; // higher rating first
+          }
+          return a.name.localeCompare(b.name); // alphabetical fallback
+        });
+        return { ...cat, channels: sortedChannels };
+      });
+    }
     return seriesCategories;
-  }, [section, liveCategories, movieCategories, seriesCategories]);
+  }, [section, liveCategories, movieCategories, seriesCategories, cacheTrigger]);
+
+  // Pre-fetch TMDB metadata for the top categories to get ratings for sorting
+  useEffect(() => {
+    if (section !== 'movies' || !tmdbApiKey) return;
+
+    // Prefetch first 2 categories (typically Lançamentos and 4K)
+    const releaseCats = movieCategories.filter(cat => isReleasesCategory(cat.name));
+    const fourkCats = movieCategories.filter(cat => is4KCategory(cat.name));
+    const otherCats = movieCategories.filter(cat => !isReleasesCategory(cat.name) && !is4KCategory(cat.name));
+    const combined = [...releaseCats, ...fourkCats, ...otherCats];
+
+    const categoriesToPrefetch = combined.slice(0, 2);
+    const channelsToFetch: Channel[] = [];
+
+    let cache: Record<string, any> = {};
+    try {
+      const cacheRaw = localStorage.getItem('iptv-tmdb-cache-v1');
+      if (cacheRaw) cache = JSON.parse(cacheRaw);
+    } catch (e) {
+      // ignore
+    }
+
+    for (const cat of categoriesToPrefetch) {
+      for (const ch of cat.channels.slice(0, 20)) {
+        const cleaned = cleanTitle(ch.name);
+        const cacheKey = `movie:${cleaned.toLowerCase()}`;
+        if (!(cacheKey in cache)) {
+          channelsToFetch.push(ch);
+        }
+      }
+    }
+
+    if (channelsToFetch.length === 0) return;
+
+    let active = true;
+    const fetchAll = async () => {
+      // Fetch up to 20 in parallel
+      const batch = channelsToFetch.slice(0, 20);
+      await Promise.all(
+        batch.map(async (ch) => {
+          if (!active) return;
+          try {
+            await getTMDBMetadata(ch.name, 'movie', tmdbApiKey);
+          } catch (e) {
+            console.error('Failed to prefetch TMDB metadata:', ch.name, e);
+          }
+        })
+      );
+    };
+
+    fetchAll();
+
+    return () => {
+      active = false;
+    };
+  }, [section, movieCategories, tmdbApiKey]);
 
   // Favorites in this section
   const favoriteChannels = useMemo(() => {
@@ -442,15 +550,36 @@ const ContentBrowser: React.FC<ContentBrowserProps> = ({
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(ch);
     }
+
+    let cache: Record<string, any> = {};
+    try {
+      const raw = localStorage.getItem('iptv-tmdb-cache-v1');
+      if (raw) cache = JSON.parse(raw);
+    } catch (e) {
+      // ignore
+    }
+
+    const getSeriesRating = (name: string): number => {
+      const cleaned = cleanTitle(name);
+      const key = `series:${cleaned.toLowerCase()}`;
+      return cache[key]?.voteAverage ?? 0;
+    };
+
     return Array.from(map.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
       .map(([name, eps]) => ({
         name,
         episodes: eps.sort((a, b) => ((a.seasonNum ?? 0) - (b.seasonNum ?? 0)) || ((a.episodeNum ?? 0) - (b.episodeNum ?? 0))),
         logo: mostCommonLogo(eps),
         isFavorite: eps.some(e => e.isFavorite),
-      }));
-  }, [section, activeCategory, sectionCategories, favoriteChannels]);
+        rating: getSeriesRating(name)
+      }))
+      .sort((a, b) => {
+        if (b.rating !== a.rating) {
+          return b.rating - a.rating; // higher rating first
+        }
+        return a.name.localeCompare(b.name);
+      });
+  }, [section, activeCategory, sectionCategories, favoriteChannels, cacheTrigger]);
 
   // Episodes of active show
   const episodesInShow = useMemo(() => {
@@ -943,6 +1072,7 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isFavorit
 
   const [resolvedLogo, setResolvedLogo] = useState<string | null>(null);
   const [hasFallbackToOriginal, setHasFallbackToOriginal] = useState(false);
+  const [rating, setRating] = useState<number>(0);
   const tmdbApiKey = useIPTVStore(state => state.tmdbApiKey);
 
   useEffect(() => {
@@ -950,13 +1080,16 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isFavorit
     const fetchPoster = async () => {
       const meta = await getTMDBMetadata(name, 'series', tmdbApiKey);
       if (active) {
-        if (meta?.posterPath) {
-          setResolvedLogo(meta.posterPath);
-          setHasFallbackToOriginal(false);
-        } else {
-          setResolvedLogo(logo || null);
-          setHasFallbackToOriginal(true);
+        if (meta) {
+          setRating(meta.voteAverage || 0);
+          if (meta.posterPath) {
+            setResolvedLogo(meta.posterPath);
+            setHasFallbackToOriginal(false);
+            return;
+          }
         }
+        setResolvedLogo(logo || null);
+        setHasFallbackToOriginal(true);
       }
     };
     fetchPoster();
@@ -1011,6 +1144,14 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isFavorit
             {name}
           </p>
         </div>
+
+        {/* Rating Badge */}
+        {rating > 0 && (
+          <div className="absolute top-1.5 left-1.5 bg-black/75 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] font-extrabold text-yellow-400 flex items-center gap-1 shadow-md z-10 border border-white/5">
+            <Star className="w-2.5 h-2.5 fill-current" />
+            <span>{rating.toFixed(1)}</span>
+          </div>
+        )}
 
         {/* Hover overlay */}
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-center justify-center">
@@ -1145,6 +1286,7 @@ const PosterCard: React.FC<PosterCardProps> = ({ channel, isActive, onSelect, on
 
   const [resolvedLogo, setResolvedLogo] = useState<string | null>(null);
   const [hasFallbackToOriginal, setHasFallbackToOriginal] = useState(false);
+  const [rating, setRating] = useState<number>(0);
   const tmdbApiKey = useIPTVStore(state => state.tmdbApiKey);
 
   useEffect(() => {
@@ -1152,13 +1294,16 @@ const PosterCard: React.FC<PosterCardProps> = ({ channel, isActive, onSelect, on
     const fetchPoster = async () => {
       const meta = await getTMDBMetadata(channel.name, 'movie', tmdbApiKey);
       if (active) {
-        if (meta?.posterPath) {
-          setResolvedLogo(meta.posterPath);
-          setHasFallbackToOriginal(false);
-        } else {
-          setResolvedLogo(channel.logo || null);
-          setHasFallbackToOriginal(true);
+        if (meta) {
+          setRating(meta.voteAverage || 0);
+          if (meta.posterPath) {
+            setResolvedLogo(meta.posterPath);
+            setHasFallbackToOriginal(false);
+            return;
+          }
         }
+        setResolvedLogo(channel.logo || null);
+        setHasFallbackToOriginal(true);
       }
     };
     fetchPoster();
@@ -1197,6 +1342,15 @@ const PosterCard: React.FC<PosterCardProps> = ({ channel, isActive, onSelect, on
             <Tv className="w-8 h-8 text-gray-600" />
             <p className="text-gray-500 text-xs text-center px-2 line-clamp-3">{channel.name}</p>
           </div>
+
+          {/* Rating Badge */}
+          {rating > 0 && (
+            <div className="absolute top-1.5 left-1.5 bg-black/75 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] font-extrabold text-yellow-400 flex items-center gap-1 shadow-md z-10 border border-white/5">
+              <Star className="w-2.5 h-2.5 fill-current" />
+              <span>{rating.toFixed(1)}</span>
+            </div>
+          )}
+
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-center justify-center">
             <div className="opacity-0 group-hover:opacity-100 transition-opacity">
               <div className="w-10 h-10 rounded-full bg-violet-600/90 flex items-center justify-center">
