@@ -14,26 +14,138 @@ interface HomeScreenProps {
   onInstall: () => void;
 }
 
-const FALLBACK_POSTERS = [
-  'https://image.tmdb.org/t/p/w300/1g0zz53tbmd7o40yqvnVj9xmiR8.jpg', // Spider-Man
-  'https://image.tmdb.org/t/p/w300/RYMX2wc7h6uzcj86LgnFB8qMR4.jpg', // Avengers
-  'https://image.tmdb.org/t/p/w300/d5Nguix71eJ6732v2xmG6yII20v.jpg', // Dune
-  'https://image.tmdb.org/t/p/w300/8Gxv2wSdqwZCNy7V5suhgyvjkgL.jpg', // Oppenheimer
-  'https://image.tmdb.org/t/p/w300/qJ2tW6WMUDmg91j1CWfeHjC48N5.jpg', // Batman
-  'https://image.tmdb.org/t/p/w300/gEU2QvIPwcwqn1vSfVFFlpHQZSL.jpg', // Interstellar
-  'https://image.tmdb.org/t/p/w300/ty85bU2oLMw5as575nZ7t5n1K5B.jpg', // Gladiator
-  'https://image.tmdb.org/t/p/w300/udDclsubCe1corj1v0upg3SMF4F.jpg', // Joker
-  'https://image.tmdb.org/t/p/w300/6FfCtAuVA66wbJqSYSRjoZ03X1z.jpg', // Star Wars
-  'https://image.tmdb.org/t/p/w300/oU76qV8kySUV46qX77MgSG0j44A.jpg', // Jurassic Park
-  'https://image.tmdb.org/t/p/w300/f89U3wLrjFutm68n7G14SVnfxQE.jpg', // Matrix
-  'https://image.tmdb.org/t/p/w300/d5iLLOFmxe9hnmKBw64hx2xbNsZ.jpg', // Pulp Fiction
-  'https://image.tmdb.org/t/p/w300/9gk7adHYeZCE1324miEwH2u2OV2.jpg', // Inception
-  'https://image.tmdb.org/t/p/w300/9xj7v4a65EQPAwzk4e25wfs85C5.jpg', // Titanic
-  'https://image.tmdb.org/t/p/w300/6oom5Qn26v65cuN6Q08h97EOFQS.jpg', // Lord of the Rings
-  'https://image.tmdb.org/t/p/w300/kyeqWzo2vQUygj2ZNrMj562nU0C.jpg', // Avatar
+// ─── CSS-only movie poster cards — no external URLs needed ─────────────────────
+// Each card has a unique gradient palette + text label to simulate a real poster
+const POSTER_CARDS: { gradient: string; label: string; sub: string }[] = [
+  { gradient: 'linear-gradient(145deg,#1a0533 0%,#4c1d95 40%,#7c3aed 100%)', label: 'ACTION', sub: 'BLOCKBUSTER' },
+  { gradient: 'linear-gradient(145deg,#0c1a2e 0%,#1e3a5f 40%,#2563eb 100%)', label: 'SCI-FI', sub: 'SPACE EPIC' },
+  { gradient: 'linear-gradient(145deg,#1a0a00 0%,#7c2d12 40%,#ea580c 100%)', label: 'DRAMA', sub: 'AWARD WINNER' },
+  { gradient: 'linear-gradient(145deg,#0f1a0f 0%,#14532d 40%,#16a34a 100%)', label: 'THRILLER', sub: 'SUSPENSE' },
+  { gradient: 'linear-gradient(145deg,#1a0022 0%,#6b21a8 40%,#a855f7 100%)', label: 'FANTASY', sub: 'EPIC SAGA' },
+  { gradient: 'linear-gradient(145deg,#1a1100 0%,#713f12 40%,#ca8a04 100%)', label: 'ADVENTURE', sub: 'ACTION' },
+  { gradient: 'linear-gradient(145deg,#0d1117 0%,#1c1c2e 40%,#4a4a8a 100%)', label: 'MYSTERY', sub: 'CRIME' },
+  { gradient: 'linear-gradient(145deg,#1a0010 0%,#831843 40%,#db2777 100%)', label: 'ROMANCE', sub: 'DRAMA' },
+  { gradient: 'linear-gradient(145deg,#001a1a 0%,#134e4a 40%,#0d9488 100%)', label: 'SPORT', sub: 'LIVE EVENT' },
+  { gradient: 'linear-gradient(145deg,#1a1a00 0%,#365314 40%,#65a30d 100%)', label: 'NATURE', sub: 'DOCUMENTARY' },
+  { gradient: 'linear-gradient(145deg,#1c0a1c 0%,#581c87 40%,#9333ea 100%)', label: 'HORROR', sub: 'THRILLER' },
+  { gradient: 'linear-gradient(145deg,#001422 0%,#0c4a6e 40%,#0284c7 100%)', label: 'OCEAN', sub: 'ADVENTURE' },
+  { gradient: 'linear-gradient(145deg,#220000 0%,#7f1d1d 40%,#dc2626 100%)', label: 'WAR', sub: 'EPIC' },
+  { gradient: 'linear-gradient(145deg,#0a0a1a 0%,#1e1b4b 40%,#4338ca 100%)', label: 'SPACE', sub: 'ODYSSEY' },
+  { gradient: 'linear-gradient(145deg,#1a0808 0%,#7c2020 40%,#b91c1c 100%)', label: 'SERIES', sub: 'SEASON 1' },
+  { gradient: 'linear-gradient(145deg,#0a1a0a 0%,#1a4731 40%,#059669 100%)', label: 'LIVE TV', sub: 'SPORTS HD' },
+  { gradient: 'linear-gradient(145deg,#1a1200 0%,#78350f 40%,#d97706 100%)', label: 'COMEDY', sub: 'BEST OF' },
+  { gradient: 'linear-gradient(145deg,#0e0015 0%,#4c0280 40%,#7c2ef0 100%)', label: 'ANIME', sub: 'SERIES' },
+  { gradient: 'linear-gradient(145deg,#001a14 0%,#064e3b 40%,#10b981 100%)', label: 'NATURE', sub: 'WILD' },
+  { gradient: 'linear-gradient(145deg,#1a000e 0%,#7c0032 40%,#db1e6e 100%)', label: 'MUSIC', sub: 'CONCERT' },
+  { gradient: 'linear-gradient(145deg,#001622 0%,#0a3d5e 40%,#1d7fba 100%)', label: 'NEWS', sub: 'LIVE' },
+  { gradient: 'linear-gradient(145deg,#150030 0%,#2e006a 40%,#6d28d9 100%)', label: 'KIDS', sub: 'ANIMATION' },
+  { gradient: 'linear-gradient(145deg,#001010 0%,#134545 40%,#0e7f80 100%)', label: 'TRAVEL', sub: 'EXPLORE' },
+  { gradient: 'linear-gradient(145deg,#220a00 0%,#7c2800 40%,#c2440e 100%)', label: 'HISTORY', sub: 'DOCUMENTARY' },
 ];
 
-// ─── Custom Movie Reel SVG (Exactly like mockup) ────────────────────────────────
+// ─── SVG icons per poster card ────────────────────────────────────────────────
+const PosterIcon: React.FC<{ index: number }> = ({ index }) => {
+  const icons = [
+    // Film strip
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="w-8 h-8 text-white/40">
+      <rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 4v16M17 4v16M2 9h20M2 15h20"/>
+    </svg>,
+    // Star
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="w-8 h-8 text-white/40">
+      <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
+    </svg>,
+    // TV
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="w-8 h-8 text-white/40">
+      <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21l4-4 4 4M12 17v4"/>
+    </svg>,
+    // Globe
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="w-8 h-8 text-white/40">
+      <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+    </svg>,
+  ];
+  return icons[index % icons.length];
+};
+
+// ─── Static CSS-only Netflix poster background ────────────────────────────────
+const NetflixPosterBackground: React.FC = () => {
+  // Duplicate cards to fill rows fully for seamless marquee
+  const makeRow = (offset: number, count: number) => {
+    const row: typeof POSTER_CARDS = [];
+    for (let i = 0; i < count; i++) {
+      row.push(POSTER_CARDS[(i + offset) % POSTER_CARDS.length]);
+    }
+    // Double for seamless infinite scroll
+    return [...row, ...row];
+  };
+
+  const rows = [
+    { cards: makeRow(0, 8), dir: 'left', speed: '80s' },
+    { cards: makeRow(6, 8), dir: 'right', speed: '95s' },
+    { cards: makeRow(12, 8), dir: 'left', speed: '70s' },
+    { cards: makeRow(3, 8), dir: 'right', speed: '85s' },
+    { cards: makeRow(9, 8), dir: 'left', speed: '90s' },
+    { cards: makeRow(15, 8), dir: 'right', speed: '75s' },
+  ];
+
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0 bg-[#07091a]">
+      {/* 3D Perspective Grid Container — skewed to match mockup perspective */}
+      <div
+        className="absolute flex flex-col gap-4"
+        style={{
+          width: '230%',
+          height: '220%',
+          left: '-65%',
+          top: '-55%',
+          transform: 'rotate(-14deg) skewX(-10deg) scale(1.1)',
+          willChange: 'transform',
+        }}
+      >
+        {rows.map((row, rowIdx) => (
+          <div key={rowIdx} className="flex gap-4 overflow-hidden shrink-0">
+            <div
+              className="flex gap-4 shrink-0"
+              style={{
+                animation: `marquee-scroll-${row.dir} ${row.speed} linear infinite`,
+                willChange: 'transform',
+              }}
+            >
+              {row.cards.map((card, cardIdx) => (
+                <div
+                  key={cardIdx}
+                  className="w-[110px] h-[160px] sm:w-[140px] sm:h-[200px] rounded-xl shrink-0 flex flex-col items-center justify-end p-3 border border-white/8 shadow-2xl relative overflow-hidden"
+                  style={{ background: card.gradient }}
+                >
+                  {/* Shine overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
+                  {/* Icon in center */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <PosterIcon index={cardIdx + rowIdx * 3} />
+                  </div>
+                  {/* Label at bottom */}
+                  <div className="relative z-10 text-center">
+                    <div className="text-white/90 font-black text-[9px] tracking-[0.15em] uppercase">{card.label}</div>
+                    <div className="text-white/40 font-semibold text-[7px] tracking-[0.1em] uppercase">{card.sub}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Vignette overlays — lighter at top (shows posters), heavier at bottom (cards area) */}
+      {/* Bottom gradient — strong dark band for card area readability */}
+      <div className="absolute inset-0 bg-gradient-to-t from-[#07091a] via-[#07091a]/20 to-transparent" style={{ background: 'linear-gradient(to top, #07091a 32%, rgba(7,9,26,0.5) 55%, transparent 80%)' }} />
+      {/* Left/right fade */}
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, #07091a 0%, transparent 12%, transparent 88%, #07091a 100%)' }} />
+      {/* Subtle overall darkening to not wash out cards */}
+      <div className="absolute inset-0 bg-black/20" />
+    </div>
+  );
+};
+
+// ─── Custom Movie Reel SVG ─────────────────────────────────────────────────────
 const MovieReelIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg
     viewBox="0 0 24 24"
@@ -53,146 +165,15 @@ const MovieReelIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-// ─── NetflixPosterBackground: React.FC = () => {
-const NetflixPosterBackground: React.FC = () => {
-  // Use the fixed set of high-quality posters all the time
-  const posters = FALLBACK_POSTERS;
-
-  // Split posters into six rows to cover the entire screen from top to bottom
-  const rowLength = Math.ceil(posters.length / 6);
-  const row1 = posters.slice(0, rowLength);
-  const row2 = posters.slice(rowLength, rowLength * 2);
-  const row3 = posters.slice(rowLength * 2, rowLength * 3);
-  const row4 = posters.slice(rowLength * 3, rowLength * 4);
-  const row5 = posters.slice(rowLength * 4, rowLength * 5);
-  const row6 = posters.slice(rowLength * 5);
-
-  // Helper to ensure lists are long enough for seamless scroll
-  const duplicateList = (arr: string[]) => {
-    if (arr.length === 0) return [];
-    let result = [...arr];
-    while (result.length < 10) {
-      result = [...result, ...arr];
-    }
-    return [...result, ...result]; // Duplicate for seamless infinite marquee transition
-  };
-
-  const r1Double = duplicateList(row1);
-  const r2Double = duplicateList(row2);
-  const r3Double = duplicateList(row3);
-  const r4Double = duplicateList(row4);
-  const r5Double = duplicateList(row5);
-  const r6Double = duplicateList(row6);
-
-  const renderPoster = (logo: string, idx: number) => {
-    return (
-      <img
-        key={`${logo}-${idx}`}
-        src={logo}
-        alt=""
-        loading="lazy"
-        className="w-[100px] h-[150px] sm:w-[130px] sm:h-[195px] rounded-2xl object-cover shrink-0 border border-white/10 shadow-lg opacity-[0.72] brightness-[0.95] contrast-[1.05] saturate-[1.05] hover:opacity-[0.88] transition-all duration-500"
-        onError={(e) => {
-          (e.target as HTMLElement).style.display = 'none';
-        }}
-      />
-    );
-  };
-
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0 bg-[#060a16]">
-      {/* 3D Perspective Grid Container */}
-      <div
-        className="absolute w-[220%] h-[220%] -left-[60%] -top-[60%] flex flex-col gap-5 transition-all duration-1000"
-        style={{
-          transform: 'rotate(-12deg) skewX(-12deg) scale(1.22) translateY(-2%)',
-          willChange: 'transform'
-        }}
-      >
-        {/* Row 1: Left scrolling */}
-        {r1Double.length > 0 && (
-          <div className="flex gap-5 overflow-hidden">
-            <div className="animate-marquee-left flex gap-5">
-              {r1Double.map((logo, idx) => renderPoster(logo, idx))}
-            </div>
-          </div>
-        )}
-
-        {/* Row 2: Right scrolling */}
-        {r2Double.length > 0 && (
-          <div className="flex gap-5 overflow-hidden">
-            <div className="animate-marquee-right flex gap-5">
-              {r2Double.map((logo, idx) => renderPoster(logo, idx))}
-            </div>
-          </div>
-        )}
-
-        {/* Row 3: Left scrolling */}
-        {r3Double.length > 0 && (
-          <div className="flex gap-5 overflow-hidden">
-            <div className="animate-marquee-left flex gap-5">
-              {r3Double.map((logo, idx) => renderPoster(logo, idx))}
-            </div>
-          </div>
-        )}
-
-        {/* Row 4: Right scrolling */}
-        {r4Double.length > 0 && (
-          <div className="flex gap-5 overflow-hidden">
-            <div className="animate-marquee-right flex gap-5">
-              {r4Double.map((logo, idx) => renderPoster(logo, idx))}
-            </div>
-          </div>
-        )}
-
-        {/* Row 5: Left scrolling */}
-        {r5Double.length > 0 && (
-          <div className="flex gap-5 overflow-hidden">
-            <div className="animate-marquee-left flex gap-5">
-              {r5Double.map((logo, idx) => renderPoster(logo, idx))}
-            </div>
-          </div>
-        )}
-
-        {/* Row 6: Right scrolling */}
-        {r6Double.length > 0 && (
-          <div className="flex gap-5 overflow-hidden">
-            <div className="animate-marquee-right flex gap-5">
-              {r6Double.map((logo, idx) => renderPoster(logo, idx))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Subtle vignettes to merge edges into dark theme, keeping background bright and clear */}
-      <div className="absolute inset-0 bg-gradient-to-t from-gray-950/70 via-transparent to-gray-950/20 z-1" />
-      <div className="absolute inset-0 bg-black/5 backdrop-blur-[0.2px] z-1" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_65%,#030712_82%)] z-1" />
-    </div>
-  );
-};
-
 // ─── HomeScreen Component ───────────────────────────────────────────────────────
 const HomeScreen: React.FC<HomeScreenProps> = ({
   channelsCount, moviesCount, seriesCount, proxyStatus,
   onSelectSection, onForceRefresh, onOpenSettings, lastUpdated, installPrompt, onInstall,
 }) => {
   const sections = [
-    {
-      key: 'live' as const,
-      icon: Tv,
-      label: 'TV AO VIVO',
-    },
-    {
-      key: 'movies' as const,
-      icon: MovieReelIcon,
-      label: 'FILMES',
-    },
-    {
-      key: 'series' as const,
-      icon: Clapperboard,
-      label: 'SÉRIES',
-    },
+    { key: 'live' as const, icon: Tv, label: 'TV AO VIVO' },
+    { key: 'movies' as const, icon: MovieReelIcon, label: 'FILMES' },
+    { key: 'series' as const, icon: Clapperboard, label: 'SÉRIES' },
   ];
 
   const proxyClass = proxyStatus === 'checking'
@@ -202,17 +183,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     : 'bg-red-500/10 border-red-500/20 text-red-400';
 
   return (
-    <div className="relative flex flex-col h-full bg-gray-950 select-none overflow-hidden">
-      {/* Dynamic Background */}
+    <div className="relative flex flex-col h-full select-none overflow-hidden" style={{ background: '#07091a' }}>
+      {/* ── Poster Background — fills top 70% of screen ── */}
       <NetflixPosterBackground />
 
-      {/* Foreground Content */}
-      <div className="relative z-10 flex flex-col h-full overflow-hidden">
-        {/* ── Top bar ── */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 backdrop-blur-md bg-black/10 shrink-0">
+      {/* ── Foreground content layer ── */}
+      <div className="relative z-10 flex flex-col h-full">
+
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-6 py-4 shrink-0">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-violet-850 flex items-center justify-center shadow-lg shadow-violet-600/30 border border-violet-500/20">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-violet-900 flex items-center justify-center shadow-lg shadow-violet-600/30 border border-violet-500/20">
               <Tv className="w-4 h-4 text-white" />
             </div>
             <div>
@@ -234,7 +216,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               <span className="hidden xs:inline">App TV</span>
             </a>
 
-            {/* Web App Install */}
             {installPrompt && (
               <button
                 onClick={onInstall}
@@ -265,10 +246,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         </div>
 
-        {/* ── Center Content: Redesigned Cards to match Mockup exactly ── */}
-        <div className="flex-1 flex flex-col items-center justify-center p-6 overflow-hidden">
-          {/* Grid of the three key cards centered side-by-side */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 w-full max-w-4xl mx-auto">
+        {/* Spacer — pushes cards to the bottom */}
+        <div className="flex-1" />
+
+        {/* ── Bottom section — cards + status bar ── */}
+        <div className="px-6 pb-8 shrink-0">
+          {/* Three category cards — side by side */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-5 w-full max-w-3xl mx-auto mb-6">
             {sections.map(({ key, icon: Icon, label }) => (
               <div
                 key={key}
@@ -277,32 +261,41 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                 tabIndex={0}
                 onClick={() => onSelectSection(key)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectSection(key); } }}
-                className="focusable-tv group flex flex-col items-center justify-center 
-                  bg-[#0e0c1b]/60 backdrop-blur-md
-                  rounded-[24px] border-2 border-violet-500/20
-                  w-48 h-56 sm:w-52 sm:h-60 cursor-pointer
+                className="focusable-tv group flex flex-col items-center justify-center cursor-pointer
+                  w-52 h-44 sm:w-56 sm:h-48
+                  rounded-[20px] border border-violet-500/30
                   transition-all duration-300
-                  hover:scale-[1.05] hover:border-violet-400/80
-                  focus:outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-500/25 focus:scale-[1.05]
-                  shadow-[0_0_30px_rgba(139,92,246,0.06)] focus:shadow-[0_0_45px_rgba(139,92,246,0.3)]
-                  active:scale-[0.98]"
+                  hover:scale-[1.04] hover:border-violet-400/70
+                  focus:outline-none focus:border-violet-400 focus:scale-[1.04]
+                  active:scale-[0.97]"
+                style={{
+                  background: 'rgba(12, 8, 28, 0.65)',
+                  backdropFilter: 'blur(16px)',
+                  WebkitBackdropFilter: 'blur(16px)',
+                  boxShadow: '0 0 0 1px rgba(139,92,246,0.15), inset 0 1px 0 rgba(255,255,255,0.05)',
+                }}
               >
+                {/* Hover glow */}
+                <div className="absolute inset-0 rounded-[20px] opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity duration-300"
+                  style={{ background: 'radial-gradient(ellipse at center, rgba(139,92,246,0.12) 0%, transparent 70%)' }} />
+
                 {/* Icon */}
-                <div className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center transition-transform duration-300 group-hover:scale-110 group-focus:scale-110">
-                  <Icon className="w-full h-full text-violet-300/90 group-hover:text-violet-200 group-focus:text-violet-200 transition-colors duration-300 stroke-[1.25]" />
+                <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center mb-5 transition-transform duration-300 group-hover:scale-110 group-focus:scale-110">
+                  <Icon className="w-full h-full text-violet-300/85 group-hover:text-violet-200 group-focus:text-violet-200 transition-colors duration-300 stroke-[1.2]" />
                 </div>
 
                 {/* Label */}
-                <span className="text-white font-extrabold text-sm sm:text-base tracking-widest leading-tight uppercase mt-5 transition-colors group-hover:text-violet-100">
+                <span className="relative text-white font-extrabold text-sm sm:text-[15px] tracking-[0.2em] leading-tight uppercase transition-colors group-hover:text-violet-100">
                   {label}
                 </span>
               </div>
             ))}
           </div>
 
-          {/* ── Status bar (subtle at the bottom) ── */}
-          <div className="flex items-center justify-between w-full max-w-4xl gap-3 mt-8">
-            <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-black/30 border border-white/5 backdrop-blur-sm flex-1 min-w-0">
+          {/* Status bar */}
+          <div className="flex items-center justify-between w-full max-w-3xl mx-auto gap-3">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/5 backdrop-blur-sm flex-1 min-w-0"
+              style={{ background: 'rgba(0,0,0,0.35)' }}>
               <Tv className="w-3.5 h-3.5 text-gray-600 shrink-0" />
               <p className="text-[11px] text-gray-500 font-semibold truncate">
                 {channelsCount > 0
@@ -313,7 +306,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
             <button
               onClick={onForceRefresh}
-              className="focusable-tv flex items-center gap-2 px-4 py-2 rounded-xl bg-black/30 border border-white/5 hover:border-violet-500/30 hover:bg-white/5 backdrop-blur-sm transition-all group shrink-0"
+              className="focusable-tv flex items-center gap-2 px-4 py-2 rounded-xl border border-white/5 hover:border-violet-500/30 hover:bg-white/5 backdrop-blur-sm transition-all group shrink-0"
+              style={{ background: 'rgba(0,0,0,0.35)' }}
             >
               <RefreshCw className="w-3 h-3 text-gray-600 group-hover:text-violet-400 group-focus:text-violet-400 transition-colors" />
               <span className="text-[11px] text-gray-500 group-hover:text-violet-400 group-focus:text-violet-400 hidden sm:block transition-colors font-semibold">
@@ -324,7 +318,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               </span>
             </button>
           </div>
-
         </div>
       </div>
     </div>
