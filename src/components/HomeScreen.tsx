@@ -1,5 +1,6 @@
-import React from 'react';
-import { Tv, Clapperboard, RefreshCw, Wifi, WifiOff, Loader2, Download, Settings } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Tv, Clapperboard, RefreshCw, Wifi, WifiOff, Loader2, Download, Settings, Star } from 'lucide-react';
+import { useIPTVStore } from '../store/useIPTVStore.ts';
 
 interface HomeScreenProps {
   channelsCount: number;
@@ -14,90 +15,276 @@ interface HomeScreenProps {
   onInstall: () => void;
 }
 
-// ─── CSS-only movie poster cards — no external URLs needed ─────────────────────
-// Each card has a unique gradient palette + text label to simulate a real poster
-const POSTER_CARDS: { gradient: string; label: string; sub: string }[] = [
-  { gradient: 'linear-gradient(145deg,#1a0533 0%,#4c1d95 40%,#7c3aed 100%)', label: 'ACTION', sub: 'BLOCKBUSTER' },
-  { gradient: 'linear-gradient(145deg,#0c1a2e 0%,#1e3a5f 40%,#2563eb 100%)', label: 'SCI-FI', sub: 'SPACE EPIC' },
-  { gradient: 'linear-gradient(145deg,#1a0a00 0%,#7c2d12 40%,#ea580c 100%)', label: 'DRAMA', sub: 'AWARD WINNER' },
-  { gradient: 'linear-gradient(145deg,#0f1a0f 0%,#14532d 40%,#16a34a 100%)', label: 'THRILLER', sub: 'SUSPENSE' },
-  { gradient: 'linear-gradient(145deg,#1a0022 0%,#6b21a8 40%,#a855f7 100%)', label: 'FANTASY', sub: 'EPIC SAGA' },
-  { gradient: 'linear-gradient(145deg,#1a1100 0%,#713f12 40%,#ca8a04 100%)', label: 'ADVENTURE', sub: 'ACTION' },
-  { gradient: 'linear-gradient(145deg,#0d1117 0%,#1c1c2e 40%,#4a4a8a 100%)', label: 'MYSTERY', sub: 'CRIME' },
-  { gradient: 'linear-gradient(145deg,#1a0010 0%,#831843 40%,#db2777 100%)', label: 'ROMANCE', sub: 'DRAMA' },
-  { gradient: 'linear-gradient(145deg,#001a1a 0%,#134e4a 40%,#0d9488 100%)', label: 'SPORT', sub: 'LIVE EVENT' },
-  { gradient: 'linear-gradient(145deg,#1a1a00 0%,#365314 40%,#65a30d 100%)', label: 'NATURE', sub: 'DOCUMENTARY' },
-  { gradient: 'linear-gradient(145deg,#1c0a1c 0%,#581c87 40%,#9333ea 100%)', label: 'HORROR', sub: 'THRILLER' },
-  { gradient: 'linear-gradient(145deg,#001422 0%,#0c4a6e 40%,#0284c7 100%)', label: 'OCEAN', sub: 'ADVENTURE' },
-  { gradient: 'linear-gradient(145deg,#220000 0%,#7f1d1d 40%,#dc2626 100%)', label: 'WAR', sub: 'EPIC' },
-  { gradient: 'linear-gradient(145deg,#0a0a1a 0%,#1e1b4b 40%,#4338ca 100%)', label: 'SPACE', sub: 'ODYSSEY' },
-  { gradient: 'linear-gradient(145deg,#1a0808 0%,#7c2020 40%,#b91c1c 100%)', label: 'SERIES', sub: 'SEASON 1' },
-  { gradient: 'linear-gradient(145deg,#0a1a0a 0%,#1a4731 40%,#059669 100%)', label: 'LIVE TV', sub: 'SPORTS HD' },
-  { gradient: 'linear-gradient(145deg,#1a1200 0%,#78350f 40%,#d97706 100%)', label: 'COMEDY', sub: 'BEST OF' },
-  { gradient: 'linear-gradient(145deg,#0e0015 0%,#4c0280 40%,#7c2ef0 100%)', label: 'ANIME', sub: 'SERIES' },
-  { gradient: 'linear-gradient(145deg,#001a14 0%,#064e3b 40%,#10b981 100%)', label: 'NATURE', sub: 'WILD' },
-  { gradient: 'linear-gradient(145deg,#1a000e 0%,#7c0032 40%,#db1e6e 100%)', label: 'MUSIC', sub: 'CONCERT' },
-  { gradient: 'linear-gradient(145deg,#001622 0%,#0a3d5e 40%,#1d7fba 100%)', label: 'NEWS', sub: 'LIVE' },
-  { gradient: 'linear-gradient(145deg,#150030 0%,#2e006a 40%,#6d28d9 100%)', label: 'KIDS', sub: 'ANIMATION' },
-  { gradient: 'linear-gradient(145deg,#001010 0%,#134545 40%,#0e7f80 100%)', label: 'TRAVEL', sub: 'EXPLORE' },
-  { gradient: 'linear-gradient(145deg,#220a00 0%,#7c2800 40%,#c2440e 100%)', label: 'HISTORY', sub: 'DOCUMENTARY' },
+// ─── Rich mock poster definitions ─────────────────────────────────────────────
+// Each mock banner looks like a real movie/show poster card
+const MOCK_BANNERS: {
+  title: string;
+  genre: string;
+  rating: number;
+  badge: string;
+  bg: string;        // main card background gradient
+  accent: string;    // accent colour for the overlay elements
+  scene: 'action' | 'space' | 'nature' | 'sport' | 'drama' | 'dark' | 'ocean' | 'fire';
+}[] = [
+  { title: 'IRON STORM', genre: 'AÇÃO', rating: 4.5, badge: '4K HDR', bg: 'linear-gradient(160deg,#0a0a1a 0%,#1a0533 50%,#2d0a66 100%)', accent: '#a855f7', scene: 'action' },
+  { title: 'DEEP SPACE', genre: 'SCI-FI', rating: 4.8, badge: 'ULTRA HD', bg: 'linear-gradient(160deg,#000814 0%,#001d3d 50%,#003566 100%)', accent: '#3b82f6', scene: 'space' },
+  { title: 'WILD EARTH', genre: 'DOC', rating: 4.2, badge: 'HD', bg: 'linear-gradient(160deg,#052e16 0%,#14532d 50%,#166534 100%)', accent: '#22c55e', scene: 'nature' },
+  { title: 'MATCH DAY', genre: 'DESPORTO', rating: 4.6, badge: 'AO VIVO', bg: 'linear-gradient(160deg,#0c1a0c 0%,#1a3a1a 50%,#2d5a1b 100%)', accent: '#84cc16', scene: 'sport' },
+  { title: 'LAST HOPE', genre: 'DRAMA', rating: 4.3, badge: 'HD', bg: 'linear-gradient(160deg,#1a0a00 0%,#431407 50%,#7c2d12 100%)', accent: '#f97316', scene: 'drama' },
+  { title: 'SHADOW CODE', genre: 'THRILLER', rating: 4.7, badge: '4K', bg: 'linear-gradient(160deg,#0a0a0a 0%,#1a1a2e 50%,#16213e 100%)', accent: '#64748b', scene: 'dark' },
+  { title: 'BLUE ABYSS', genre: 'AVENTURA', rating: 4.4, badge: 'HDR', bg: 'linear-gradient(160deg,#0c0a3e 0%,#06114e 50%,#0e1b74 100%)', accent: '#38bdf8', scene: 'ocean' },
+  { title: 'EMBER WARS', genre: 'ÉPICO', rating: 4.9, badge: '4K HDR', bg: 'linear-gradient(160deg,#1c0000 0%,#4a0404 50%,#7f1d1d 100%)', accent: '#ef4444', scene: 'fire' },
+  { title: 'ZERO GRAVITY', genre: 'SCI-FI', rating: 4.6, badge: 'ULTRA HD', bg: 'linear-gradient(160deg,#050014 0%,#12002e 50%,#1e0047 100%)', accent: '#8b5cf6', scene: 'space' },
+  { title: 'FINAL CUP', genre: 'DESPORTO', rating: 4.1, badge: 'AO VIVO', bg: 'linear-gradient(160deg,#001a00 0%,#003300 50%,#004d00 100%)', accent: '#4ade80', scene: 'sport' },
+  { title: 'CRIMSON TIDE', genre: 'AÇÃO', rating: 4.5, badge: '4K', bg: 'linear-gradient(160deg,#1a0005 0%,#3b000f 50%,#6b0020 100%)', accent: '#fb7185', scene: 'action' },
+  { title: 'AURORA', genre: 'DOC', rating: 4.8, badge: 'HD', bg: 'linear-gradient(160deg,#00080f 0%,#001a33 50%,#003355 100%)', accent: '#06b6d4', scene: 'nature' },
+  { title: 'BROKEN VOWS', genre: 'DRAMA', rating: 4.0, badge: 'HD', bg: 'linear-gradient(160deg,#0f0a00 0%,#2e1a00 50%,#5c3a00 100%)', accent: '#fbbf24', scene: 'drama' },
+  { title: 'TITAN RISING', genre: 'ÉPICO', rating: 4.7, badge: '4K HDR', bg: 'linear-gradient(160deg,#0a1a2a 0%,#0f2d4a 50%,#15426b 100%)', accent: '#0ea5e9', scene: 'action' },
+  { title: 'NIGHT OWL', genre: 'THRILLER', rating: 4.4, badge: 'HD', bg: 'linear-gradient(160deg,#0f0000 0%,#1f0000 50%,#3b0000 100%)', accent: '#f43f5e', scene: 'dark' },
+  { title: 'HORIZON', genre: 'SCI-FI', rating: 4.9, badge: 'ULTRA HD', bg: 'linear-gradient(160deg,#020014 0%,#0a0033 50%,#14005c 100%)', accent: '#a78bfa', scene: 'space' },
 ];
 
-// ─── SVG icons per poster card ────────────────────────────────────────────────
-const PosterIcon: React.FC<{ index: number }> = ({ index }) => {
-  const icons = [
-    // Film strip
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="w-8 h-8 text-white/40">
-      <rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 4v16M17 4v16M2 9h20M2 15h20"/>
-    </svg>,
-    // Star
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="w-8 h-8 text-white/40">
-      <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
-    </svg>,
-    // TV
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="w-8 h-8 text-white/40">
-      <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21l4-4 4 4M12 17v4"/>
-    </svg>,
-    // Globe
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="w-8 h-8 text-white/40">
-      <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-    </svg>,
-  ];
-  return icons[index % icons.length];
-};
-
-// ─── Static CSS-only Netflix poster background ────────────────────────────────
-const NetflixPosterBackground: React.FC = () => {
-  // Duplicate cards to fill rows fully for seamless marquee
-  const makeRow = (offset: number, count: number) => {
-    const row: typeof POSTER_CARDS = [];
-    for (let i = 0; i < count; i++) {
-      row.push(POSTER_CARDS[(i + offset) % POSTER_CARDS.length]);
-    }
-    // Double for seamless infinite scroll
-    return [...row, ...row];
+// ─── Scene SVG art for each mock banner ───────────────────────────────────────
+const SceneArt: React.FC<{ scene: string; accent: string }> = ({ scene, accent }) => {
+  const baseStyle: React.CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    opacity: 0.35,
   };
 
-  const rows = [
-    { cards: makeRow(0, 8), dir: 'left', speed: '80s' },
-    { cards: makeRow(6, 8), dir: 'right', speed: '95s' },
-    { cards: makeRow(12, 8), dir: 'left', speed: '70s' },
-    { cards: makeRow(3, 8), dir: 'right', speed: '85s' },
-    { cards: makeRow(9, 8), dir: 'left', speed: '90s' },
-    { cards: makeRow(15, 8), dir: 'right', speed: '75s' },
-  ];
+  switch (scene) {
+    case 'space':
+      return (
+        <svg style={baseStyle} viewBox="0 0 110 160" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="55" cy="70" r="28" fill="none" stroke={accent} strokeWidth="1"/>
+          <circle cx="55" cy="70" r="18" fill={accent} fillOpacity="0.15"/>
+          <circle cx="55" cy="70" r="5" fill={accent} fillOpacity="0.6"/>
+          <ellipse cx="55" cy="70" rx="42" ry="10" fill="none" stroke={accent} strokeWidth="0.5" strokeDasharray="3 2"/>
+          {[...Array(20)].map((_, i) => (
+            <circle key={i} cx={Math.sin(i * 18.8) * 52 + 55} cy={Math.cos(i * 13.4) * 72 + 72} r="0.8" fill="white" fillOpacity={0.3 + (i % 3) * 0.2}/>
+          ))}
+        </svg>
+      );
+    case 'action':
+      return (
+        <svg style={baseStyle} viewBox="0 0 110 160" xmlns="http://www.w3.org/2000/svg">
+          <polygon points="55,20 80,80 30,80" fill={accent} fillOpacity="0.2" stroke={accent} strokeWidth="0.8"/>
+          <polygon points="55,45 75,95 35,95" fill={accent} fillOpacity="0.15"/>
+          <line x1="10" y1="130" x2="100" y2="90" stroke={accent} strokeWidth="0.5" strokeOpacity="0.5"/>
+          <line x1="0" y1="100" x2="110" y2="60" stroke={accent} strokeWidth="0.3" strokeOpacity="0.3"/>
+          <circle cx="55" cy="65" r="20" fill="none" stroke={accent} strokeWidth="0.5" strokeOpacity="0.4"/>
+          <line x1="40" y1="120" x2="70" y2="40" stroke={accent} strokeWidth="0.4" strokeOpacity="0.4"/>
+        </svg>
+      );
+    case 'sport':
+      return (
+        <svg style={baseStyle} viewBox="0 0 110 160" xmlns="http://www.w3.org/2000/svg">
+          <ellipse cx="55" cy="130" rx="50" ry="8" fill={accent} fillOpacity="0.2"/>
+          <rect x="20" y="105" width="70" height="3" rx="1" fill={accent} fillOpacity="0.3"/>
+          <rect x="5" y="70" width="100" height="1" fill={accent} fillOpacity="0.2"/>
+          <circle cx="55" cy="75" r="15" fill="none" stroke={accent} strokeWidth="1.2"/>
+          <path d="M 42 70 Q 55 60 68 70 Q 55 80 42 70" fill={accent} fillOpacity="0.25"/>
+          <rect x="40" y="60" width="2" height="55" fill={accent} fillOpacity="0.3"/>
+          <rect x="68" y="60" width="2" height="55" fill={accent} fillOpacity="0.3"/>
+        </svg>
+      );
+    case 'nature':
+      return (
+        <svg style={baseStyle} viewBox="0 0 110 160" xmlns="http://www.w3.org/2000/svg">
+          <path d="M 0 120 Q 20 80 40 90 Q 55 60 70 85 Q 85 70 110 100 L 110 160 L 0 160 Z" fill={accent} fillOpacity="0.25"/>
+          <circle cx="80" cy="30" r="20" fill={accent} fillOpacity="0.15"/>
+          <path d="M 65 30 Q 80 10 95 30" fill={accent} fillOpacity="0.2" stroke={accent} strokeWidth="0.5"/>
+          <line x1="0" y1="110" x2="110" y2="110" stroke={accent} strokeWidth="0.4" strokeOpacity="0.3"/>
+        </svg>
+      );
+    case 'drama':
+      return (
+        <svg style={baseStyle} viewBox="0 0 110 160" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="55" cy="55" r="25" fill={accent} fillOpacity="0.12" stroke={accent} strokeWidth="0.5"/>
+          <ellipse cx="55" cy="55" rx="12" ry="18" fill={accent} fillOpacity="0.2"/>
+          <path d="M 30 100 Q 55 80 80 100 Q 90 120 55 130 Q 20 120 30 100" fill={accent} fillOpacity="0.15"/>
+          <line x1="55" y1="30" x2="55" y2="155" stroke={accent} strokeWidth="0.3" strokeOpacity="0.3"/>
+        </svg>
+      );
+    case 'dark':
+      return (
+        <svg style={baseStyle} viewBox="0 0 110 160" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0" y="0" width="110" height="160" fill="black" fillOpacity="0.4"/>
+          <path d="M 0 80 L 55 30 L 110 80 L 110 160 L 0 160 Z" fill={accent} fillOpacity="0.08"/>
+          <line x1="0" y1="0" x2="110" y2="160" stroke={accent} strokeWidth="0.4" strokeOpacity="0.3"/>
+          <line x1="110" y1="0" x2="0" y2="160" stroke={accent} strokeWidth="0.4" strokeOpacity="0.3"/>
+          <circle cx="55" cy="80" r="12" fill={accent} fillOpacity="0.15" stroke={accent} strokeWidth="0.5"/>
+        </svg>
+      );
+    case 'ocean':
+      return (
+        <svg style={baseStyle} viewBox="0 0 110 160" xmlns="http://www.w3.org/2000/svg">
+          <path d="M 0 80 Q 18 65 36 80 Q 54 95 72 80 Q 90 65 110 80 L 110 160 L 0 160 Z" fill={accent} fillOpacity="0.2"/>
+          <path d="M 0 95 Q 20 82 40 95 Q 60 108 80 95 Q 95 82 110 95 L 110 160 L 0 160 Z" fill={accent} fillOpacity="0.15"/>
+          <circle cx="55" cy="50" r="22" fill={accent} fillOpacity="0.1" stroke={accent} strokeWidth="0.5"/>
+          <circle cx="55" cy="50" r="8" fill={accent} fillOpacity="0.25"/>
+        </svg>
+      );
+    case 'fire':
+      return (
+        <svg style={baseStyle} viewBox="0 0 110 160" xmlns="http://www.w3.org/2000/svg">
+          <path d="M 55 150 Q 30 120 40 90 Q 25 100 30 70 Q 45 90 50 60 Q 55 30 55 10 Q 65 40 60 60 Q 70 40 75 60 Q 85 35 80 70 Q 85 100 70 90 Q 80 120 55 150 Z" fill={accent} fillOpacity="0.35"/>
+          <path d="M 55 140 Q 38 115 45 95 Q 55 105 55 80 Q 60 95 65 85 Q 72 115 55 140 Z" fill={accent} fillOpacity="0.5"/>
+        </svg>
+      );
+    default:
+      return null;
+  }
+};
+
+// ─── Single mock poster card ───────────────────────────────────────────────────
+const MockPosterCard: React.FC<{ banner: typeof MOCK_BANNERS[0] }> = ({ banner }) => (
+  <div
+    className="w-[110px] h-[160px] sm:w-[140px] sm:h-[200px] rounded-xl shrink-0 relative overflow-hidden border shadow-2xl"
+    style={{
+      background: banner.bg,
+      borderColor: `${banner.accent}22`,
+      boxShadow: `0 4px 24px rgba(0,0,0,0.6), inset 0 1px 0 ${banner.accent}18`,
+    }}
+  >
+    {/* Scene illustration */}
+    <SceneArt scene={banner.scene} accent={banner.accent} />
+
+    {/* Gradient overlay — darkens bottom for text */}
+    <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.85) 100%)' }} />
+
+    {/* Badge top-right */}
+    <div
+      className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[7px] font-black tracking-wider"
+      style={{ background: `${banner.accent}33`, color: banner.accent, border: `1px solid ${banner.accent}44` }}
+    >
+      {banner.badge}
+    </div>
+
+    {/* Bottom info */}
+    <div className="absolute bottom-0 left-0 right-0 p-2">
+      <div className="text-white/90 font-black text-[9px] tracking-[0.12em] uppercase leading-tight">{banner.title}</div>
+      <div className="flex items-center justify-between mt-1">
+        <span className="text-[7px] font-semibold tracking-wider" style={{ color: `${banner.accent}cc` }}>{banner.genre}</span>
+        <div className="flex items-center gap-0.5">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="w-1.5 h-1.5 rounded-full" style={{ background: i < Math.floor(banner.rating) ? banner.accent : `${banner.accent}30` }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+// ─── Real image poster card (from playlist) ────────────────────────────────────
+const RealPosterCard: React.FC<{ src: string; name: string; fallback: typeof MOCK_BANNERS[0] }> = ({
+  src, name, fallback
+}) => {
+  const [failed, setFailed] = React.useState(false);
+
+  if (failed) {
+    return <MockPosterCard banner={fallback} />;
+  }
 
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0 bg-[#07091a]">
-      {/* 3D Perspective Grid Container — skewed to match mockup perspective */}
+    <div
+      className="w-[110px] h-[160px] sm:w-[140px] sm:h-[200px] rounded-xl shrink-0 relative overflow-hidden border border-white/8 shadow-2xl"
+    >
+      <img
+        src={src}
+        alt={name}
+        loading="lazy"
+        className="w-full h-full object-cover"
+        onError={() => setFailed(true)}
+      />
+      {/* Bottom label overlay */}
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 55%, rgba(0,0,0,0.8) 100%)' }} />
+      <div className="absolute bottom-0 left-0 right-0 p-2">
+        <div className="text-white/85 font-bold text-[8px] tracking-wide uppercase leading-tight truncate">{name}</div>
+      </div>
+    </div>
+  );
+};
+
+// Shared discriminated union type for poster list items
+type PosterItem =
+  | { type: 'mock'; mock: typeof MOCK_BANNERS[0]; idx: number; key: string }
+  | { type: 'real'; src: string; name: string; fallbackIdx: number; key: string };
+
+// ─── Netflix poster background ─────────────────────────────────────────────────
+const NetflixPosterBackground: React.FC = () => {
+  const { movieChannels, seriesChannels, liveChannels } = useIPTVStore();
+  const hasPlaylist = movieChannels.length > 0 || seriesChannels.length > 0;
+
+  // Build the poster list — real images from playlist when available, mocks otherwise
+  const posterList = useMemo((): PosterItem[] => {
+    if (!hasPlaylist) {
+      return MOCK_BANNERS.map((b, i): PosterItem => ({ type: 'mock', mock: b, idx: i, key: `mock-${i}` }));
+    }
+
+    const seen = new Set<string>();
+    const items: PosterItem[] = [];
+
+    const tryAdd = (ch: { logo?: string; name: string }, fallbackIdx: number, prefix: string) => {
+      if (items.length >= 30) return;
+      const src = ch.logo?.trim();
+      if (src && src.startsWith('http') && !seen.has(src)) {
+        seen.add(src);
+        items.push({ type: 'real', src, name: ch.name, fallbackIdx, key: `${prefix}-${items.length}` });
+      }
+    };
+
+    const step = Math.max(1, Math.floor(movieChannels.length / 12));
+    for (let i = 0; i < movieChannels.length && items.length < 12; i += step) {
+      tryAdd(movieChannels[i], i % MOCK_BANNERS.length, 'movie');
+    }
+    const step2 = Math.max(1, Math.floor(seriesChannels.length / 10));
+    for (let i = 0; i < seriesChannels.length && items.length < 22; i += step2) {
+      tryAdd(seriesChannels[i], i % MOCK_BANNERS.length, 'series');
+    }
+    const step3 = Math.max(1, Math.floor(liveChannels.length / 8));
+    for (let i = 0; i < liveChannels.length && items.length < 30; i += step3) {
+      tryAdd(liveChannels[i], i % MOCK_BANNERS.length, 'live');
+    }
+
+    if (items.length < 10) {
+      for (let i = 0; i < MOCK_BANNERS.length && items.length < 16; i++) {
+        items.push({ type: 'real', src: '', name: '', fallbackIdx: i, key: `pad-${i}` });
+      }
+    }
+
+    return items;
+  }, [hasPlaylist, movieChannels, seriesChannels, liveChannels]);
+
+  // Distribute into 6 rows
+  const rows = useMemo(() => {
+    const N = posterList.length;
+    const perRow = Math.max(4, Math.ceil(N / 6));
+    const speeds = ['80s', '95s', '70s', '88s', '92s', '75s'];
+    const dirs = ['left', 'right', 'left', 'right', 'left', 'right'] as const;
+
+    return Array.from({ length: 6 }, (_, r) => {
+      const start = (r * 3) % N; // stagger offsets per row
+      const raw: typeof posterList = [];
+      for (let i = 0; i < perRow; i++) {
+        raw.push(posterList[(start + i) % N]);
+      }
+      const doubled = [...raw, ...raw];
+      return { items: doubled, dir: dirs[r], speed: speeds[r] };
+    });
+  }, [posterList]);
+
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0" style={{ background: '#07091a' }}>
+      {/* 3D grid */}
       <div
         className="absolute flex flex-col gap-4"
         style={{
           width: '230%',
-          height: '220%',
+          height: '230%',
           left: '-65%',
           top: '-55%',
-          transform: 'rotate(-14deg) skewX(-10deg) scale(1.1)',
+          transform: 'rotate(-14deg) skewX(-10deg)',
           willChange: 'transform',
         }}
       >
@@ -110,52 +297,36 @@ const NetflixPosterBackground: React.FC = () => {
                 willChange: 'transform',
               }}
             >
-              {row.cards.map((card, cardIdx) => (
-                <div
-                  key={cardIdx}
-                  className="w-[110px] h-[160px] sm:w-[140px] sm:h-[200px] rounded-xl shrink-0 flex flex-col items-center justify-end p-3 border border-white/8 shadow-2xl relative overflow-hidden"
-                  style={{ background: card.gradient }}
-                >
-                  {/* Shine overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
-                  {/* Icon in center */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <PosterIcon index={cardIdx + rowIdx * 3} />
-                  </div>
-                  {/* Label at bottom */}
-                  <div className="relative z-10 text-center">
-                    <div className="text-white/90 font-black text-[9px] tracking-[0.15em] uppercase">{card.label}</div>
-                    <div className="text-white/40 font-semibold text-[7px] tracking-[0.1em] uppercase">{card.sub}</div>
-                  </div>
-                </div>
-              ))}
+              {row.items.map((item) =>
+                item.type === 'mock' ? (
+                  <MockPosterCard key={item.key} banner={item.mock} />
+                ) : item.src ? (
+                  <RealPosterCard
+                    key={item.key}
+                    src={item.src}
+                    name={item.name}
+                    fallback={MOCK_BANNERS[item.fallbackIdx]}
+                  />
+                ) : (
+                  <MockPosterCard key={item.key} banner={MOCK_BANNERS[item.fallbackIdx]} />
+                )
+              )}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Vignette overlays — lighter at top (shows posters), heavier at bottom (cards area) */}
-      {/* Bottom gradient — strong dark band for card area readability */}
-      <div className="absolute inset-0 bg-gradient-to-t from-[#07091a] via-[#07091a]/20 to-transparent" style={{ background: 'linear-gradient(to top, #07091a 32%, rgba(7,9,26,0.5) 55%, transparent 80%)' }} />
-      {/* Left/right fade */}
-      <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, #07091a 0%, transparent 12%, transparent 88%, #07091a 100%)' }} />
-      {/* Subtle overall darkening to not wash out cards */}
-      <div className="absolute inset-0 bg-black/20" />
+      {/* Vignettes */}
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, #07091a 28%, rgba(7,9,26,0.45) 52%, transparent 78%)' }} />
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, #07091a 0%, transparent 10%, transparent 90%, #07091a 100%)' }} />
+      <div className="absolute inset-0 bg-black/15" />
     </div>
   );
 };
 
 // ─── Custom Movie Reel SVG ─────────────────────────────────────────────────────
 const MovieReelIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-  >
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <circle cx="12" cy="12" r="10" />
     <circle cx="12" cy="12" r="3" />
     <circle cx="12" cy="7" r="1.5" fill="currentColor" />
@@ -184,15 +355,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
   return (
     <div className="relative flex flex-col h-full select-none overflow-hidden" style={{ background: '#07091a' }}>
-      {/* ── Poster Background — fills top 70% of screen ── */}
+      {/* Background poster grid */}
       <NetflixPosterBackground />
 
-      {/* ── Foreground content layer ── */}
+      {/* Foreground */}
       <div className="relative z-10 flex flex-col h-full">
 
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-4 shrink-0">
-          {/* Logo */}
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-violet-900 flex items-center justify-center shadow-lg shadow-violet-600/30 border border-violet-500/20">
               <Tv className="w-4 h-4 text-white" />
@@ -203,9 +373,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
           </div>
 
-          {/* Right actions */}
           <div className="flex items-center gap-3">
-            {/* TV App Download */}
             <a
               href="https://drive.google.com/uc?export=download&id=1uaEDiEtXDLAuOZ8herlYwzicCY2A13OM"
               target="_blank"
@@ -226,7 +394,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               </button>
             )}
 
-            {/* Proxy status */}
             <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border ${proxyClass}`}>
               {proxyStatus === 'checking'
                 ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="hidden xs:inline">A ligar…</span></>
@@ -236,7 +403,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               }
             </div>
 
-            {/* Settings */}
             <button
               onClick={onOpenSettings}
               className="focusable-tv p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/15 transition-all text-gray-400 hover:text-white"
@@ -246,12 +412,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         </div>
 
-        {/* Spacer — pushes cards to the bottom */}
+        {/* Spacer */}
         <div className="flex-1" />
 
-        {/* ── Bottom section — cards + status bar ── */}
+        {/* Bottom section */}
         <div className="px-6 pb-8 shrink-0">
-          {/* Three category cards — side by side */}
+          {/* Cards */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-5 w-full max-w-3xl mx-auto mb-6">
             {sections.map(({ key, icon: Icon, label }) => (
               <div
@@ -261,7 +427,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                 tabIndex={0}
                 onClick={() => onSelectSection(key)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectSection(key); } }}
-                className="focusable-tv group flex flex-col items-center justify-center cursor-pointer
+                className="focusable-tv group relative flex flex-col items-center justify-center cursor-pointer
                   w-52 h-44 sm:w-56 sm:h-48
                   rounded-[20px] border border-violet-500/30
                   transition-all duration-300
@@ -269,15 +435,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                   focus:outline-none focus:border-violet-400 focus:scale-[1.04]
                   active:scale-[0.97]"
                 style={{
-                  background: 'rgba(12, 8, 28, 0.65)',
-                  backdropFilter: 'blur(16px)',
-                  WebkitBackdropFilter: 'blur(16px)',
-                  boxShadow: '0 0 0 1px rgba(139,92,246,0.15), inset 0 1px 0 rgba(255,255,255,0.05)',
+                  background: 'rgba(10, 6, 24, 0.72)',
+                  backdropFilter: 'blur(18px)',
+                  WebkitBackdropFilter: 'blur(18px)',
+                  boxShadow: '0 0 0 1px rgba(139,92,246,0.15), inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 32px rgba(0,0,0,0.4)',
                 }}
               >
                 {/* Hover glow */}
-                <div className="absolute inset-0 rounded-[20px] opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity duration-300"
-                  style={{ background: 'radial-gradient(ellipse at center, rgba(139,92,246,0.12) 0%, transparent 70%)' }} />
+                <div className="absolute inset-0 rounded-[20px] opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity duration-300 pointer-events-none"
+                  style={{ background: 'radial-gradient(ellipse at 50% 60%, rgba(139,92,246,0.14) 0%, transparent 70%)' }} />
 
                 {/* Icon */}
                 <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center mb-5 transition-transform duration-300 group-hover:scale-110 group-focus:scale-110">
@@ -294,20 +460,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
           {/* Status bar */}
           <div className="flex items-center justify-between w-full max-w-3xl mx-auto gap-3">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/5 backdrop-blur-sm flex-1 min-w-0"
-              style={{ background: 'rgba(0,0,0,0.35)' }}>
-              <Tv className="w-3.5 h-3.5 text-gray-600 shrink-0" />
+            <div
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/5 backdrop-blur-sm flex-1 min-w-0"
+              style={{ background: 'rgba(0,0,0,0.4)' }}
+            >
+              <Star className="w-3 h-3 text-violet-500 shrink-0" />
               <p className="text-[11px] text-gray-500 font-semibold truncate">
                 {channelsCount > 0
-                  ? `${channelsCount.toLocaleString('pt-PT')} canais, ${moviesCount.toLocaleString('pt-PT')} filmes, ${seriesCount.toLocaleString('pt-PT')} séries listados`
-                  : 'Nenhuma lista M3U adicionada'}
+                  ? `${channelsCount.toLocaleString('pt-PT')} canais · ${moviesCount.toLocaleString('pt-PT')} filmes · ${seriesCount.toLocaleString('pt-PT')} séries`
+                  : 'Adicione uma lista M3U nas Definições para começar'}
               </p>
             </div>
 
             <button
               onClick={onForceRefresh}
               className="focusable-tv flex items-center gap-2 px-4 py-2 rounded-xl border border-white/5 hover:border-violet-500/30 hover:bg-white/5 backdrop-blur-sm transition-all group shrink-0"
-              style={{ background: 'rgba(0,0,0,0.35)' }}
+              style={{ background: 'rgba(0,0,0,0.4)' }}
             >
               <RefreshCw className="w-3 h-3 text-gray-600 group-hover:text-violet-400 group-focus:text-violet-400 transition-colors" />
               <span className="text-[11px] text-gray-500 group-hover:text-violet-400 group-focus:text-violet-400 hidden sm:block transition-colors font-semibold">
