@@ -256,41 +256,47 @@ const NetflixPosterBackground: React.FC = () => {
     return items;
   }, [hasPlaylist, movieChannels, seriesChannels, liveChannels]);
 
-  // Distribute into 10 rows — enough to cover full screen even with 14deg rotation loss
-  const NUM_ROWS = 10;
+  // 14 rows — fills the full diagonal even at 14deg rotation
+  const NUM_ROWS = 14;
   const rows = useMemo(() => {
     const N = posterList.length;
-    const perRow = Math.max(5, Math.ceil(N / 6));
-    const speeds = ['80s', '95s', '70s', '88s', '92s', '75s', '82s', '98s', '67s', '85s'];
-    const dirs = ['left', 'right', 'left', 'right', 'left', 'right', 'left', 'right', 'left', 'right'] as const;
+    // Each row needs at least 16 items to fill the full rotated diagonal width
+    const perRow = Math.max(16, N);
+    const speeds = ['80s', '95s', '70s', '88s', '92s', '75s', '82s', '98s', '67s', '85s', '78s', '91s', '73s', '86s'];
+    const dirs = ['left', 'right', 'left', 'right', 'left', 'right', 'left', 'right', 'left', 'right', 'left', 'right', 'left', 'right'] as const;
 
     return Array.from({ length: NUM_ROWS }, (_, r) => {
-      const start = (r * 3) % N;
+      const start = (r * 4) % N;
       const raw: typeof posterList = [];
+      // Build row with enough items to guarantee full width coverage
       for (let i = 0; i < perRow; i++) {
         raw.push(posterList[(start + i) % N]);
       }
-      const doubled = [...raw, ...raw];
-      return { items: doubled, dir: dirs[r], speed: speeds[r] };
+      // Triple-duplicate for truly seamless infinite marquee
+      const tripled = [...raw, ...raw, ...raw];
+      return { items: tripled, dir: dirs[r], speed: speeds[r] };
     });
   }, [posterList]);
 
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0" style={{ background: '#07091a' }}>
-      {/* 3D perspective grid — wide and tall to cover full viewport despite rotation */}
+      {/*
+        Grid container: centered on the viewport via top:50% left:50% + translate(-50%,-50%).
+        This ensures the rotation pivot is the screen center, so the grid expands equally in all directions.
+        Width/height are 350% to guarantee full coverage even after -14deg rotation.
+      */}
       <div
         className="absolute flex flex-col gap-3"
         style={{
-          width: '280%',
-          height: '420%',
-          left: '-90%',
-          top: '-120%',
-          transform: 'rotate(-14deg) skewX(-8deg)',
+          width: '350%',
+          left: '50%',
+          top: '50%',
+          transform: 'translateX(-50%) translateY(-50%) rotate(-14deg)',
           willChange: 'transform',
         }}
       >
         {rows.map((row, rowIdx) => (
-          <div key={rowIdx} className="flex gap-3 overflow-hidden shrink-0">
+          <div key={rowIdx} className="flex gap-3 overflow-hidden shrink-0 w-full">
             <div
               className="flex gap-3 shrink-0"
               style={{
@@ -317,9 +323,15 @@ const NetflixPosterBackground: React.FC = () => {
         ))}
       </div>
 
-      {/* Vignette — lighter fade so posters are visible throughout */}
-      <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, #07091a 22%, rgba(7,9,26,0.3) 48%, transparent 72%)' }} />
-      <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, #07091a 0%, transparent 8%, transparent 92%, #07091a 100%)' }} />
+      {/* Bottom vignette — dark band for card readability, transparent at top */}
+      <div className="absolute inset-0" style={{
+        background: 'linear-gradient(to top, #07091a 20%, rgba(7,9,26,0.25) 45%, transparent 70%)'
+      }} />
+      {/* Left/right edge fade */}
+      <div className="absolute inset-0" style={{
+        background: 'linear-gradient(to right, #07091a 0%, transparent 6%, transparent 94%, #07091a 100%)'
+      }} />
+      {/* Very slight overall darkening */}
       <div className="absolute inset-0 bg-black/10" />
     </div>
   );
