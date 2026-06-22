@@ -2,7 +2,7 @@ import React, { useRef, useState, useMemo, useCallback, useEffect } from 'react'
 import { ChevronRight, Play, Heart, ArrowLeft, Tv, Folder, Star, Search, X } from 'lucide-react';
 import type { Channel, Category, ContinueWatchingEntry } from '../types/index.ts';
 import { useIPTVStore } from '../store/useIPTVStore.ts';
-import { getTMDBMetadata, cleanTitle } from '../utils/tmdb.ts';
+import { getTMDBMetadata, cleanTitle, getCachedTMDBMetadata } from '../utils/tmdb.ts';
 import DetailModal from './DetailModal.tsx';
 
 interface ContentBrowserProps {
@@ -1070,12 +1070,26 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isFavorit
   const hue = Math.abs(name.split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0)) % 360;
   const gradientStyle = { background: `linear-gradient(160deg, hsl(${hue},55%,22%) 0%, hsl(${hue},40%,10%) 100%)` };
 
-  const [resolvedLogo, setResolvedLogo] = useState<string | null>(null);
-  const [hasFallbackToOriginal, setHasFallbackToOriginal] = useState(false);
-  const [rating, setRating] = useState<number>(0);
+  const [isFocused, setIsFocused] = useState(false);
+  const [resolvedLogo, setResolvedLogo] = useState<string | null>(() => {
+    const cached = getCachedTMDBMetadata(name, 'series');
+    return cached?.posterPath || logo || null;
+  });
+  const [hasFallbackToOriginal, setHasFallbackToOriginal] = useState(() => {
+    const cached = getCachedTMDBMetadata(name, 'series');
+    return !cached?.posterPath;
+  });
+  const [rating, setRating] = useState<number>(() => {
+    const cached = getCachedTMDBMetadata(name, 'series');
+    return cached?.voteAverage || 0;
+  });
   const tmdbApiKey = useIPTVStore(state => state.tmdbApiKey);
 
   useEffect(() => {
+    const cached = getCachedTMDBMetadata(name, 'series');
+    if (!isFocused && cached) return;
+    if (!isFocused && !cached) return;
+
     let active = true;
     const fetchPoster = async () => {
       const meta = await getTMDBMetadata(name, 'series', tmdbApiKey);
@@ -1096,7 +1110,7 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isFavorit
     return () => {
       active = false;
     };
-  }, [name, logo, tmdbApiKey]);
+  }, [name, logo, tmdbApiKey, isFocused]);
 
   const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     if (!hasFallbackToOriginal && logo) {
@@ -1116,6 +1130,8 @@ const ShowCard: React.FC<ShowCardProps> = ({ name, logo, episodeCount, isFavorit
         {...lp}
         role="button"
         tabIndex={0}
+        onFocus={() => setIsFocused(true)}
+        onMouseEnter={() => setIsFocused(true)}
         className={`focusable-tv group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-200
           ${isActive ? 'ring-2 ring-violet-500 scale-[1.02]' : 'hover:scale-[1.04] hover:ring-1 hover:ring-white/20 focus:outline-none focus:ring-2 focus:ring-violet-500'}`}
       >
@@ -1284,12 +1300,26 @@ const PosterCard: React.FC<PosterCardProps> = ({ channel, isActive, onSelect, on
   const [menuOpen, setMenuOpen] = useState(false);
   const lp = useLongPress(() => setMenuOpen(true), onSelect);
 
-  const [resolvedLogo, setResolvedLogo] = useState<string | null>(null);
-  const [hasFallbackToOriginal, setHasFallbackToOriginal] = useState(false);
-  const [rating, setRating] = useState<number>(0);
+  const [isFocused, setIsFocused] = useState(false);
+  const [resolvedLogo, setResolvedLogo] = useState<string | null>(() => {
+    const cached = getCachedTMDBMetadata(channel.name, 'movie');
+    return cached?.posterPath || channel.logo || null;
+  });
+  const [hasFallbackToOriginal, setHasFallbackToOriginal] = useState(() => {
+    const cached = getCachedTMDBMetadata(channel.name, 'movie');
+    return !cached?.posterPath;
+  });
+  const [rating, setRating] = useState<number>(() => {
+    const cached = getCachedTMDBMetadata(channel.name, 'movie');
+    return cached?.voteAverage || 0;
+  });
   const tmdbApiKey = useIPTVStore(state => state.tmdbApiKey);
 
   useEffect(() => {
+    const cached = getCachedTMDBMetadata(channel.name, 'movie');
+    if (!isFocused && cached) return;
+    if (!isFocused && !cached) return;
+
     let active = true;
     const fetchPoster = async () => {
       const meta = await getTMDBMetadata(channel.name, 'movie', tmdbApiKey);
@@ -1310,7 +1340,7 @@ const PosterCard: React.FC<PosterCardProps> = ({ channel, isActive, onSelect, on
     return () => {
       active = false;
     };
-  }, [channel.name, channel.logo, tmdbApiKey]);
+  }, [channel.name, channel.logo, tmdbApiKey, isFocused]);
 
   const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     if (!hasFallbackToOriginal && channel.logo) {
@@ -1330,6 +1360,8 @@ const PosterCard: React.FC<PosterCardProps> = ({ channel, isActive, onSelect, on
         {...lp}
         role="button"
         tabIndex={0}
+        onFocus={() => setIsFocused(true)}
+        onMouseEnter={() => setIsFocused(true)}
         className={`focusable-tv group relative rounded-lg overflow-hidden cursor-pointer transition-all duration-200 shrink-0 w-28 sm:w-32 focus:outline-none focus:scale-[1.04] focus:ring-2 focus:ring-violet-500
           ${isActive ? 'ring-2 ring-violet-500 scale-[1.02]' : 'hover:scale-[1.04] hover:ring-1 hover:ring-white/20'}`}
       >

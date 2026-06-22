@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Channel, Category, HistoryEntry, ContinueWatchingEntry } from '../types/index.ts';
 import { groupByCategory } from '../utils/m3uParser.ts';
+import { saveChannelsToDB, loadChannelsFromDB, clearChannelsDB } from '../utils/db.ts';
 
 interface IPTVState {
   // Data
@@ -26,6 +27,7 @@ interface IPTVState {
 
   // Actions
   setChannels: (channels: Channel[], url: string) => void;
+  loadFromCache: () => Promise<boolean>;
   setCurrentChannel: (channel: Channel | null) => void;
   setActiveCategory: (name: string | null) => void;
   setSearchQuery: (q: string) => void;
@@ -99,6 +101,9 @@ export const useIPTVStore = create<IPTVState>()(
           ...seriesCategories
         ].sort((a, b) => a.name.localeCompare(b.name));
 
+        // Save to local IndexedDB asynchronously
+        saveChannelsToDB(rawChannels);
+
         set({
           channels: rawChannels,
           liveChannels,
@@ -115,6 +120,74 @@ export const useIPTVStore = create<IPTVState>()(
           currentChannel: null,
           isAutoLoading: false,
         });
+      },
+
+      loadFromCache: async () => {
+        const { playlistUrl } = get();
+        if (!playlistUrl) return false;
+
+        try {
+          const cached = await loadChannelsFromDB();
+          if (cached && cached.length > 0) {
+            const favIds = getPersistedFavoriteIds();
+            const rawChannels = cached.map(c => ({
+              ...c,
+              isFavorite: favIds.has(c.id)
+            }));
+
+            const liveChannels: Channel[] = [];
+            const movieChannels: Channel[] = [];
+            const seriesChannels: Channel[] = [];
+            const favoriteList: Channel[] = [];
+            const idMap: Record<string, Channel> = {};
+
+            for (const c of rawChannels) {
+              idMap[c.id] = c;
+              if (c.isFavorite) {
+                favoriteList.push(c);
+              }
+
+              if (c.contentType === 'movie') {
+                movieChannels.push(c);
+              } else if (c.contentType === 'series') {
+                seriesChannels.push(c);
+              } else {
+                liveChannels.push(c);
+              }
+            }
+
+            const liveCategories = groupByCategory(liveChannels);
+            const movieCategories = groupByCategory(movieChannels);
+            const seriesCategories = groupByCategory(seriesChannels);
+
+            const categories = [
+              ...liveCategories,
+              ...movieCategories,
+              ...seriesCategories
+            ].sort((a, b) => a.name.localeCompare(b.name));
+
+            set({
+              channels: rawChannels,
+              liveChannels,
+              movieChannels,
+              seriesChannels,
+              favoriteList,
+              categories,
+              liveCategories,
+              movieCategories,
+              seriesCategories,
+              idMap,
+              activeCategory: null,
+              currentChannel: null,
+              isAutoLoading: false,
+            });
+            return true;
+          }
+          return false;
+        } catch (e) {
+          console.error('[Store] Failed to load channels from IndexedDB:', e);
+          return false;
+        }
       },
 
       setCurrentChannel: (channel) => {
@@ -165,7 +238,8 @@ export const useIPTVStore = create<IPTVState>()(
         });
       },
 
-      clearPlaylist: () =>
+      clearPlaylist: () => {
+        clearChannelsDB();
         set({
           channels: [],
           liveChannels: [],
@@ -181,7 +255,8 @@ export const useIPTVStore = create<IPTVState>()(
           activeCategory: null,
           playlistUrl: '',
           searchQuery: '',
-        }),
+        });
+      },
 
       addToHistory: (channel) => {
         if (!channel) return;

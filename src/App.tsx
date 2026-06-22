@@ -42,6 +42,7 @@ function App() {
     currentChannel, setCurrentChannel, channels,
     playlistUrl, setChannels, setAutoLoading,
     liveChannels, movieChannels, seriesChannels,
+    loadFromCache,
   } = useIPTVStore();
 
   // ── Replace initial history entry so the very first "back" stays in-app ──────
@@ -317,7 +318,7 @@ function App() {
     return () => clearTimeout(timer);
   }, [screen, channels.length]);
 
-  // ── Wake up proxy & auto-reload ───────────────────────────────────────────────
+  // ── Wake up proxy in background ───────────────────────────────────────────────
   useEffect(() => {
     const pingProxy = async () => {
       try {
@@ -327,10 +328,19 @@ function App() {
         setProxyStatus('offline');
       }
     };
+    pingProxy();
+  }, []);
 
-    pingProxy().then(() => {
-      // Only auto-reload if no channels are loaded yet (first launch or after clearPlaylist)
-      if (playlistUrl && channels.length === 0) {
+  // ── Load cached channels immediately (offline-first) ──────────────────────────
+  useEffect(() => {
+    if (playlistUrl && channels.length === 0) {
+      loadFromCache().then(loaded => {
+        if (loaded) {
+          console.log('[IPTV] Loaded channels successfully from local cache');
+          return;
+        }
+
+        // Fallback to network download if cache is empty
         setAutoLoading(true);
         const favIds = getPersistedFavoriteIds();
         fetchM3U(playlistUrl)
@@ -340,7 +350,7 @@ function App() {
               acc[c.contentType ?? 'live'] = (acc[c.contentType ?? 'live'] ?? 0) + 1;
               return acc;
             }, {} as Record<string, number>);
-            console.log('[IPTV] Content types:', counts);
+            console.log('[IPTV] Content types loaded from network:', counts);
             setChannels(withFavs, playlistUrl);
             setLastUpdated(new Date().toLocaleString('pt-PT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }));
           })
@@ -348,10 +358,10 @@ function App() {
             console.error('[IPTV] Auto-reload failed:', err);
             setAutoLoading(false);
           });
-      }
-    });
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [playlistUrl]);
 
   // ── Force refresh ─────────────────────────────────────────────────────────────
   const handleForceRefresh = () => {

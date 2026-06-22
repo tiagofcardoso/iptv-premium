@@ -99,6 +99,20 @@ export function cleanTitle(title: string): string {
 }
 
 /**
+ * Synchronously retrieves TMDB metadata from the cache if available.
+ */
+export function getCachedTMDBMetadata(
+  name: string,
+  type: 'movie' | 'series'
+): TMDBMetadata | null {
+  if (!name) return null;
+  const cleaned = cleanTitle(name);
+  if (!cleaned) return null;
+  const cacheKeyStr = `${type}:${cleaned.toLowerCase()}`;
+  return tmdbCache[cacheKeyStr] || null;
+}
+
+/**
  * Searches TMDB for a movie or TV series metadata.
  * Uses a local cache to prevent redundant API queries.
  */
